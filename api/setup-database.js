@@ -1,10 +1,5 @@
-import { createPool } from '@vercel/postgres';
+import { sql } from '@vercel/postgres';
 import fallbackConfig from '../js/config.js';
-
-// Manually create a connection pool using your custom environment variable
-const sql = createPool({
-  connectionString: process.env.PC_POSTGRES_URL,
-}).sql;
 
 export default async function handler(request, response) {
     try {
