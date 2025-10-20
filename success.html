@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loading...</title>
+    <link id="success-favicon" rel="icon" type="image/x-icon" href="">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-slate-50 text-gray-800 flex items-center justify-center min-h-screen p-4">
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-slate-50 flex items-center justify-center z-50">
+        <img id="loading-image" src="https://i.gifer.com/ZZ5H.gif" alt="Loading..." class="h-16 w-16">
+    </div>
+    
+    <!-- Main Content (hidden by default) -->
+    <div id="main-content" class="w-full max-w-md mx-auto bg-white p-8 rounded-2xl shadow-xl text-center hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-green-500 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <h1 id="success-heading" class="text-2xl font-bold mb-2"></h1>
+        <p id="success-subheading" class="text-gray-600 mb-6"></p>
+        <a id="success-button" href="/?sendAgain=true" class="w-full inline-block text-white font-bold py-3 px-4 rounded-lg transition duration-300 shadow-md mb-6">
+        </a>
+        
+        <p id="success-promo-text" class="text-gray-600"></p>
+        <a id="success-promo-link" href="" target="_blank">
+            <img id="success-promo-image" src="" alt="Promo Image" class="mx-auto mt-2">
+        </a>
+    </div>
+
+    <script src="js/success.js" type="module"></script>
+</body>
+</html>
+

@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Postcard Creator - Admin Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/admin.css">
+</head>
+<body class="bg-gray-100 font-sans flex justify-center">
+    <div class="container w-full max-w-2xl p-4 sm:p-6 lg:p-8">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">Configuration Panel</h1>
+            <p class="text-gray-600 mt-1">Edit the settings for your postcard application.</p>
+        </header>
+
+        <form id="config-form" class="bg-white p-6 rounded-lg shadow-lg">
+            
+            <!-- Accordion Section: Main Page Settings -->
+            <div class="border-b">
+                <div class="accordion-header p-4 cursor-pointer flex justify-between items-center">
+                    <h2 class="text-lg font-semibold text-gray-700">Main Page Settings</h2>
+                    <svg class="accordion-icon w-6 h-6 text-gray-500 transition-transform transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+                <div class="accordion-content">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 p-4">
+                        <div>
+                            <label for="pageTitle" class="block text-sm font-medium text-gray-700 mb-1">Page Title</label>
+                            <input type="text" id="pageTitle" class="admin-input w-full" required>
+                        </div>
+                        <div class="flex items-end gap-4">
+                             <div class="w-1/2">
+                                <label for="faviconURL" class="block text-sm font-medium text-gray-700 mb-1">Favicon URL</label>
+                                <input type="text" id="faviconURL" class="admin-input w-full" required>
+                             </div>
+                             <div class="w-1/2 flex items-center gap-2">
+                                <img id="favicon-preview" src="" alt="Favicon Preview" class="h-8 w-8 object-contain border rounded-md">
+                                <label for="favicon-uploader" class="cursor-pointer bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-semibold py-2 px-3 rounded-md">Upload</label>
+                                <input type="file" id="favicon-uploader" accept="image/*" class="hidden">
+                            </div>
+                        </div>
+                        <div>
+                            <label for="mainTitle" class="block text-sm font-medium text-gray-700 mb-1">Main Title</label>
+                            <input type="text" id="mainTitle" class="admin-input w-full" required>
+                        </div>
+                        <div>
+                            <label for="titleColor" class="block text-sm font-medium text-gray-700 mb-1">Title Colour</label>
+                            <input type="color" id="titleColor" class="admin-color-input w-full" required>
+                        </div>
+                        <div>
+                            <label for="subtitleText" class="block text-sm font-medium text-gray-700 mb-1">Subtitle Text</label>
+                            <input type="text" id="subtitleText" class="admin-input w-full" required>
+                        </div>
+                         <div>
+                            <label for="subtitleLinkText" class="block text-sm font-medium text-gray-700 mb-1">Subtitle Link Text</label>
+                            <input type="text" id="subtitleLinkText" class="admin-input w-full" required>
+                        </div>
+                        <div>
+                            <label for="subtitleLinkURL" class="block text-sm font-medium text-gray-700 mb-1">Subtitle Link URL</label>
+                            <input type="text" id="subtitleLinkURL" class="admin-input w-full" required>
+                        </div>
+                        <div>
+                            <label for="subtitleLinkColor" class="block text-sm font-medium text-gray-700 mb-1">Subtitle Link Colour</label>
+                            <input type="color" id="subtitleLinkColor" class="admin-color-input w-full" required>
+                        </div>
+                         <div class="flex items-end gap-4 md:col-span-2">
+                             <div class="w-1/2">
+                                <label for="loadingImageURL" class="block text-sm font-medium text-gray-700 mb-1">Page Loading GIF</label>
+                                <input type="text" id="loadingImageURL" class="admin-input w-full" required>
+                             </div>
+                             <div class="w-1/2 flex items-center gap-2">
+                                <img id="loading-image-preview" src="" alt="Loading GIF Preview" class="h-12 w-12 object-contain border rounded-md">
+                                <label for="loading-image-uploader" class="cursor-pointer bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-semibold py-2 px-3 rounded-md">Upload</label>
+                                <input type="file" id="loading-image-uploader" accept="image/gif" class="hidden">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Accordion Section: Button Colours -->
+            <div class="border-b">
+                <div class="accordion-header p-4 cursor-pointer flex justify-between items-center">
+                    <h2 class="text-lg font-semibold text-gray-700">Button Colours</h2>
+                    <svg class="accordion-icon w-6 h-6 text-gray-500 transition-transform transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+                <div class="accordion-content">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 p-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Upload Button</label>
+                            <div class="flex gap-2">
+                                <input type="color" id="uploadButtonColor" class="admin-color-input w-full" title="Background Colour" required>
+                                <input type="color" id="uploadButtonTextColor" class="admin-color-input w-full" title="Font Colour" required>
+                            </div>
+                        </div>
+                        <div>
+                           <label class="block text-sm font-medium text-gray-700 mb-1">Find Image Button</label>
+                            <div class="flex gap-2">
+                                <input type="color" id="findImageButtonColor" class="admin-color-input w-full" title="Background Colour" required>
+                                <input type="color" id="findImageButtonTextColor" class="admin-color-input w-full" title="Font Colour" required>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Send Postcard Button</label>
+                            <div class="flex gap-2">
+                                <input type="color" id="sendPostcardButtonColor" class="admin-color-input w-full" title="Background Colour" required>
+                                <input type="color" id="sendPostcardButtonTextColor" class="admin-color-input w-full" title="Font Colour" required>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Accordion Section: Verification Email -->
+             <div class="border-b">
+                <div class="accordion-header p-4 cursor-pointer flex justify-between items-center">
+                    <h2 class="text-lg font-semibold text-gray-700">Verification Email Settings</h2>
+                    <svg class="accordion-icon w-6 h-6 text-gray-500 transition-transform transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+                <div class="accordion-content">
+                    <div class="flex flex-col gap-4 p-4">
+                        <div>
+                            <label for="emailSenderName" class="block text-sm font-medium text-gray-700 mb-1">Email From Name</label>
+                            <input type="text" id="emailSenderName" class="admin-input w-full" required>
+                        </div>
+                        <div>
+                            <label for="emailSubject" class="block text-sm font-medium text-gray-700 mb-1">Subject Line</label>
+                            <input type="text" id="emailSubject" class="admin-input w-full" required>
+                        </div>
+                        <div>
+                             <label for="emailBody" class="block text-sm font-medium text-gray-700 mb-1">Email Body Text</label>
+                            <textarea id="emailBody" rows="3" class="admin-input w-full" required></textarea>
+                        </div>
+                        <div class="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">
+                            <p class="font-semibold mb-2">Available Variables:</p>
+                            <div class="flex items-center gap-2">
+                                <button type="button" class="copy-btn" data-clipboard-text="{{senderName}}">Copy {{senderName}}</button>
+                                <button type="button" class="copy-btn" data-clipboard-text="{{recipientName}}">Copy {{recipientName}}</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+             <!-- Accordion Section: Confirmation Email -->
+             <div class="border-b">
+                <div class="accordion-header p-4 cursor-pointer flex justify-between items-center">
+                    <h2 class="text-lg font-semibold text-gray-700">Confirmation Email Settings</h2>
+                    <svg class="accordion-icon w-6 h-6 text-gray-500 transition-transform transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+                <div class="accordion-content">
+                    <div class="flex flex-col gap-4 p-4">
+                        <div>
+                            <label for="confirmationSenderName" class="block text-sm font-medium text-gray-700 mb-1">Email From Name</label>
+                            <input type="text" id="confirmationSenderName" class="admin-input w-full" required>
+                        </div>
+                        <div>
+                            <label for="confirmationSubject" class="block text-sm font-medium text-gray-700 mb-1">Subject Line</label>
+                            <input type="text" id="confirmationSubject" class="admin-input w-full" required>
+                        </div>
+                        <div>
+                             <label for="confirmationBody" class="block text-sm font-medium text-gray-700 mb-1">Email Body Text</label>
+                            <textarea id="confirmationBody" rows="3" class="admin-input w-full" required></textarea>
+                        </div>
+                        <div>
+                            <label for="confirmationPromoText" class="block text-sm font-medium text-gray-700 mb-1">Promo Text</label>
+                            <input type="text" id="confirmationPromoText" class="admin-input w-full" required>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <div>
+                                <label for="confirmationPromoLinkURL" class="block text-sm font-medium text-gray-700 mb-1">Promo Link URL</label>
+                                <input type="text" id="confirmationPromoLinkURL" class="admin-input w-full" required>
+                            </div>
+                             <div class="flex items-end gap-4">
+                                 <div class="w-1/2">
+                                    <label for="confirmationPromoImageURL" class="block text-sm font-medium text-gray-700 mb-1">Promo Image URL</label>
+                                    <input type="text" id="confirmationPromoImageURL" class="admin-input w-full" required>
+                                 </div>
+                                 <div class="w-1/2 flex items-center gap-2">
+                                    <img id="confirmation-promo-image-preview" src="" alt="Promo Image Preview" class="h-10 w-auto object-contain border rounded-md">
+                                    <label for="confirmation-promo-image-uploader" class="cursor-pointer bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-semibold py-2 px-3 rounded-md">Upload</label>
+                                    <input type="file" id="confirmation-promo-image-uploader" accept="image/*" class="hidden">
+                                </div>
+                            </div>
+                        </div>
+                         <div class="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">
+                            <p class="font-semibold mb-2">Available Variables:</p>
+                            <div class="flex items-center gap-2">
+                                <button type="button" class="copy-btn" data-clipboard-text="{{senderName}}">Copy {{senderName}}</button>
+                                <button type="button" class="copy-btn" data-clipboard-text="{{recipientName}}">Copy {{recipientName}}</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- Accordion Section: Success Page -->
+            <div class="border-b">
+                <div class="accordion-header p-4 cursor-pointer flex justify-between items-center">
+                    <h2 class="text-lg font-semibold text-gray-700">Success Page Settings</h2>
+                    <svg class="accordion-icon w-6 h-6 text-gray-500 transition-transform transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+                <div class="accordion-content">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 p-4">
+                        <div>
+                            <label for="successTitle" class="block text-sm font-medium text-gray-700 mb-1">Page Title</label>
+                            <input type="text" id="successTitle" class="admin-input w-full" required>
+                        </div>
+                        <div class="flex items-end gap-4">
+                             <div class="w-1/2">
+                                <label for="successFaviconURL" class="block text-sm font-medium text-gray-700 mb-1">Favicon URL</label>
+                                <input type="text" id="successFaviconURL" class="admin-input w-full" required>
+                             </div>
+                             <div class="w-1/2 flex items-center gap-2">
+                                <img id="success-favicon-preview" src="" alt="Favicon Preview" class="h-8 w-8 object-contain border rounded-md">
+                                <label for="success-favicon-uploader" class="cursor-pointer bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-semibold py-2 px-3 rounded-md">Upload</label>
+                                <input type="file" id="success-favicon-uploader" accept="image/*" class="hidden">
+                            </div>
+                        </div>
+                        <div>
+                            <label for="successHeading" class="block text-sm font-medium text-gray-700 mb-1">Heading</label>
+                            <input type="text" id="successHeading" class="admin-input w-full" required>
+                        </div>
+                        <div>
+                            <label for="successHeadingColor" class="block text-sm font-medium text-gray-700 mb-1">Heading Colour</label>
+                            <input type="color" id="successHeadingColor" class="admin-color-input w-full" required>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label for="successSubheading" class="block text-sm font-medium text-gray-700 mb-1">Subheading</label>
+                            <input type="text" id="successSubheading" class="admin-input w-full" required>
+                        </div>
+                         <div>
+                            <label for="successButtonText" class="block text-sm font-medium text-gray-700 mb-1">Button Text</label>
+                            <input type="text" id="successButtonText" class="admin-input w-full" required>
+                        </div>
+                         <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Button Colours</label>
+                            <div class="flex gap-2">
+                                <input type="color" id="successButtonColor" class="admin-color-input w-full" title="Background Colour" required>
+                                <input type="color" id="successButtonTextColor" class="admin-color-input w-full" title="Font Colour" required>
+                            </div>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label for="successPromoText" class="block text-sm font-medium text-gray-700 mb-1">Promo Text</label>
+                            <input type="text" id="successPromoText" class="admin-input w-full" required>
+                        </div>
+                         <div>
+                            <label for="successPromoLinkURL" class="block text-sm font-medium text-gray-700 mb-1">Promo Link URL</label>
+                            <input type="text" id="successPromoLinkURL" class="admin-input w-full" required>
+                        </div>
+                         <div class="flex items-end gap-4">
+                             <div class="w-1/2">
+                                <label for="successPromoImageURL" class="block text-sm font-medium text-gray-700 mb-1">Promo Image URL</label>
+                                <input type="text" id="successPromoImageURL" class="admin-input w-full" required>
+                             </div>
+                             <div class="w-1/2 flex items-center gap-2">
+                                <img id="promo-image-preview" src="" alt="Promo Image Preview" class="h-10 w-auto object-contain border rounded-md">
+                                <label for="promo-image-uploader" class="cursor-pointer bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-semibold py-2 px-3 rounded-md">Upload</label>
+                                <input type="file" id="promo-image-uploader" accept="image/*" class="hidden">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Accordion Section: Postcard Promotion Content -->
+            <div class="border-b">
+                <div class="accordion-header p-4 cursor-pointer flex justify-between items-center">
+                    <h2 class="text-lg font-semibold text-gray-700">Postcard Promotion Content</h2>
+                    <svg class="accordion-icon w-6 h-6 text-gray-500 transition-transform transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+                <div class="accordion-content">
+                    <div class="grid grid-cols-1 gap-6 p-4">
+                        <p class="text-sm text-gray-600">This image will be sent to the print API and appear on the final printed postcard. It should be 500px x 500px.</p>
+                        <div class="flex items-end gap-4">
+                            <div class="w-1/2">
+                                <label for="postcardPromoImageURL" class="block text-sm font-medium text-gray-700 mb-1">Promo Image URL</label>
+                                <input type="text" id="postcardPromoImageURL" class="admin-input w-full" required>
+                            </div>
+                            <div class="w-1/2 flex items-center gap-2">
+                                <img id="postcard-promo-image-preview" src="" alt="Postcard Promo Preview" class="h-20 w-20 object-contain border rounded-md">
+                                <label for="postcard-promo-image-uploader" class="cursor-pointer bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-semibold py-2 px-3 rounded-md">Upload</label>
+                                <input type="file" id="postcard-promo-image-uploader" accept="image/*" class="hidden">
+                           </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Accordion Section: Usage Limits -->
+            <div class="border-b">
+                <div class="accordion-header p-4 cursor-pointer flex justify-between items-center">
+                    <h2 class="text-lg font-semibold text-gray-700">Usage Limits</h2>
+                    <svg class="accordion-icon w-6 h-6 text-gray-500 transition-transform transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+                <div class="accordion-content">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 p-4">
+                        <div>
+                            <label for="postcardLimit" class="block text-sm font-medium text-gray-700 mb-1">Postcard Limit</label>
+                            <input type="number" id="postcardLimit" class="admin-input w-full" min="1" required>
+                        </div>
+                        <div>
+                            <label for="limitDays" class="block text-sm font-medium text-gray-700 mb-1">Timeframe (in days)</label>
+                            <input type="number" id="limitDays" class="admin-input w-full" min="1" required>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="mt-8 flex justify-end">
+                <button type="submit" id="save-changes-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition duration-300">
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <script src="../js/admin.js" type="module"></script>
+</body>
+</html>
+

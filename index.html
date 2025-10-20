@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loading...</title>
+    <link id="favicon" rel="icon" type="image/x-icon" href="" />
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/masonry-layout@4/dist/masonry.pkgd.min.js" async></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Caveat:wght@400;700&family=Dancing+Script:wght@400;700&family=Indie+Flower&family=Pacifico&family=Homemade+Apple&family=Gochi+Hand&family=Dawning+of+a+New+Day&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-slate-50 text-gray-800 flex flex-col items-center min-h-screen p-4 md:p-8">
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-slate-50 flex items-center justify-center z-50">
+        <img id="loading-image" src="https://i.gifer.com/ZZ5H.gif" alt="Loading..." class="h-16 w-16">
+    </div>
+
+    <div id="error-banner" class="hidden w-full max-w-2xl mx-auto bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-4" role="alert">
+      <strong class="font-bold">Error:</strong>
+      <span id="error-banner-message" class="block sm:inline">Something went wrong.</span>
+    </div>
+
+    <!-- Main Content (hidden by default) -->
+    <div id="main-content" class="w-full max-w-2xl mx-auto hidden">
+        <header class="text-center mb-8">
+            <h1 id="main-title" class="text-2xl md:text-3xl font-bold"></h1>
+            <p id="subtitle" class="text-black mt-2"></p>
+        </header>
+
+        <main class="w-full bg-white p-4 sm:p-6 rounded-2xl shadow-xl flex flex-col gap-2">
+
+            <!-- Accordion Section 1: Front Image -->
+            <div class="border rounded-lg overflow-hidden">
+                <div id="accordion-header-1" class="accordion-header flex justify-between items-center p-2 cursor-pointer bg-slate-50 hover:bg-slate-100">
+                     <div class="flex items-center gap-2">
+                        <svg id="tick-1" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-500 hidden" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>
+                        <h3 class="text-sm font-bold text-gray-700">1. Design Front</h3>
+                    </div>
+                    <svg class="accordion-icon w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+                <div id="accordion-content-1" class="accordion-content px-4">
+                    <div id="preview-container" class="relative w-full aspect-[210/148] rounded-lg shadow-[6px_6px_15px_rgba(0,0,0,0.3)] flex items-center justify-center text-center transition-all duration-300 hidden">
+                        <canvas id="preview-canvas" class="rounded-lg"></canvas>
+                        <div id="image-controls" class="absolute top-2 right-2 flex gap-2 hidden">
+                            <button id="delete-image-btn" class="bg-red-500 hover:bg-red-600 text-white p-2 rounded-md w-8 h-8 flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div id="zoom-controls" class="absolute bottom-2 right-2 flex flex-col gap-1">
+                            <button id="zoom-in-btn" class="w-8 h-8 flex items-center justify-center bg-black bg-opacity-50 hover:bg-opacity-75 text-white font-bold rounded-full text-lg">+</button>
+                            <button id="zoom-out-btn" class="w-8 h-8 flex items-center justify-center bg-black bg-opacity-50 hover:bg-opacity-75 text-white font-bold rounded-full text-lg">-</button>
+                        </div>
+                    </div>
+                    <div id="image-placeholder" class="flex flex-col items-center justify-center gap-4 py-6 sm:py-10">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                        <div class="flex flex-col gap-2">
+                            <label id="upload-button" for="image-uploader" class="cursor-pointer text-white font-bold py-2 px-4 rounded-lg transition duration-300 shadow-md">Upload a Pic</label>
+                            <button id="find-image-button" class="text-white font-bold py-2 px-4 rounded-lg transition duration-300 shadow-md">Find an Image</button>
+                        </div>
+                    </div>
+                    <input type="file" id="image-uploader" accept="image/*" class="hidden"/>
+                    <p id="image-warning" class="text-red-500 text-sm mt-2 hidden"></p>
+                </div>
+            </div>
+
+             <!-- Accordion Section 2: Text -->
+            <div class="border rounded-lg overflow-hidden">
+                <div id="accordion-header-2" class="accordion-header flex justify-between items-center p-2 cursor-pointer bg-slate-50 hover:bg-slate-100">
+                    <div class="flex items-center gap-2">
+                        <svg id="tick-2" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-500 hidden" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>
+                        <h3 class="text-sm font-bold text-gray-700">2. Add text & emojis to the image</h3>
+                    </div>
+                    <svg class="accordion-icon w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+                <div id="accordion-content-2" class="accordion-content px-4">
+                    <input type="text" id="front-text-input" placeholder="Type here..." class="w-full p-2 bg-slate-50 border border-gray-300 rounded-lg mb-4">
+                    <p id="front-text-profanity-warning" class="text-red-500 text-sm mb-2 hidden"></p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label for="front-font-select" class="block text-sm font-medium text-gray-700 mb-1">Font</label>
+                            <select id="front-font-select" class="w-full p-2 bg-slate-50 border border-gray-300 rounded-lg"><option value="'Dancing Script', cursive">Dancing Script</option><option value="'Caveat', cursive">Caveat</option><option value="'Indie Flower', cursive">Indie Flower</option><option value="'Pacifico', cursive">Pacifico</option><option value="'Homemade Apple', cursive">Homemade Apple</option><option value="'Gochi Hand', cursive" selected>Gochi Hand</option><option value="'Dawning of a New Day', cursive">Dawning of a New Day</option></select>
+                        </div>
+                        <div>
+                            <label for="front-color-picker" class="block text-sm font-medium text-gray-700 mb-1">Colour</label>
+                            <input type="color" id="front-color-picker" value="#FFFFFF" class="w-full h-10 p-1 bg-white border border-gray-300 rounded-lg cursor-pointer">
+                        </div>
+                    </div>
+                     <button id="no-thanks-text-btn" class="mt-4 w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-4 rounded-lg transition-opacity duration-300">No thanks</button>
+                </div>
+            </div>
+
+            <!-- Accordion Section 3: Message -->
+            <div class="border rounded-lg overflow-hidden">
+                <div id="accordion-header-3" class="accordion-header flex justify-between items-center p-2 cursor-pointer bg-slate-50 hover:bg-slate-100">
+                     <div class="flex items-center gap-2">
+                        <svg id="tick-3" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-500 hidden" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>
+                        <h3 class="text-sm font-bold text-gray-700">3. Write Message on the other side</h3>
+                    </div>
+                    <svg class="accordion-icon w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+                <div id="accordion-content-3" class="accordion-content px-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="flex flex-col h-full">
+                            <textarea id="text-input" class="w-full p-3 bg-slate-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition duration-200 flex-grow" rows="8"></textarea>
+                            <p id="message-warning" class="text-red-500 text-sm mt-2 hidden">Warning: Message is too long.</p>
+                            <p id="message-profanity-warning" class="text-red-500 text-sm mt-2 hidden"></p>
+                        </div>
+                        <div class="flex flex-col space-y-4"><select id="font-select" class="w-full p-3 bg-slate-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"><option value="'Dancing Script', cursive">Dancing Script</option><option value="'Caveat', cursive">Caveat</option><option value="'Indie Flower', cursive">Indie Flower</option><option value="'Pacifico', cursive">Pacifico</option><option value="'Homemade Apple', cursive">Homemade Apple</option><option value="'Gochi Hand', cursive" selected>Gochi Hand</option><option value="'Dawning of a New Day', cursive">Dawning of a New Day</option></select><input type="color" id="color-picker" value="#1f2937" class="w-full h-12 p-1 bg-white border border-gray-300 rounded-lg cursor-pointer"><div><label for="font-size-slider" class="block text-sm font-medium text-gray-700 mb-1">Font Size: <span id="font-size-value">16</span>px</label><input type="range" id="font-size-slider" min="12" max="40" value="16"></div><div><label for="font-weight-slider" class="block text-sm font-medium text-gray-700 mb-1">Ink Weight: <span id="font-weight-value">400</span></label><input type="range" id="font-weight-slider" min="100" max="900" step="100" value="400"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Accordion Section 4: Address -->
+            <div class="border rounded-lg overflow-hidden">
+                 <div id="accordion-header-4" class="accordion-header flex justify-between items-center p-2 cursor-pointer bg-slate-50 hover:bg-slate-100">
+                    <div class="flex items-center gap-2">
+                        <svg id="tick-4" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-500 hidden" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>
+                        <h3 class="text-sm font-bold text-gray-700">4. Add Address</h3>
+                    </div>
+                    <svg class="accordion-icon w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+                <div id="accordion-content-4" class="accordion-content px-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <input type="text" id="address-name" placeholder="Recipient Name" class="p-2 bg-slate-50 border border-gray-300 rounded-lg" required>
+                        <input type="text" id="address-line1" placeholder="Address Line 1" class="p-2 bg-slate-50 border border-gray-300 rounded-lg" required>
+                        <input type="text" id="address-line2" placeholder="Address Line 2 (Optional)" class="p-2 bg-slate-50 border border-gray-300 rounded-lg">
+                        <input type="text" id="address-city" placeholder="City" class="p-2 bg-slate-50 border border-gray-300 rounded-lg" required>
+                        <input type="text" id="address-postcode" placeholder="Postcode / ZIP" class="p-2 bg-slate-50 border border-gray-300 rounded-lg" required>
+                        <div>
+                            <input type="text" id="address-country" value="UK" class="p-2 bg-gray-200 border border-gray-300 rounded-lg w-full" disabled>
+                            <p class="text-xs text-gray-500 mt-1">Only available in the United Kingdom</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Accordion Section 5: Preview & Send -->
+            <div class="border rounded-lg overflow-hidden">
+                <div id="accordion-header-5" class="accordion-header flex justify-between items-center p-2 bg-slate-50">
+                    <h3 class="text-sm font-bold text-gray-700">5. Preview & Send</h3>
+                </div>
+                <div id="accordion-content-5" class="accordion-content px-4">
+                    <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                        <div class="w-full sm:w-1/2">
+                            <h4 class="text-center font-semibold mb-2">Front Preview</h4>
+                            <div id="final-preview-front-container" class="aspect-[210/148] bg-white rounded-lg shadow-md relative">
+                                <img id="final-preview-front" class="w-full h-full object-cover rounded-lg cursor-pointer">
+                            </div>
+                        </div>
+                        <div class="w-full sm:w-1/2">
+                            <h4 class="text-center font-semibold mb-2">Back Preview</h4>
+                             <div id="final-preview-back-container" class="aspect-[210/148] bg-white rounded-lg shadow-md relative"><img id="final-preview-back" class="w-full h-full object-cover rounded-lg cursor-pointer"></div>
+                        </div>
+                    </div>
+                    <button id="send-postcard-btn" class="w-full mt-6 text-white font-bold py-3 px-4 rounded-lg transition duration-300 shadow-md flex items-center justify-center gap-2">
+                        <span class="btn-text">Send Postcard</span>
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- SENDER DETAILS MODAL -->
+     <div id="sender-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
+        <div id="sender-details-view" class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm flex flex-col gap-4">
+            <div class="flex justify-between items-center">
+                <h3 class="text-xl font-bold">Your Details</h3>
+                <button id="close-sender-modal-btn" class="text-2xl leading-none">&times;</button>
+            </div>
+            <p id="sender-error-message" class="hidden text-red-500 text-sm bg-red-100 p-2 rounded-md"></p>
+            <input type="text" id="sender-name" placeholder="Enter Name" class="p-2 border rounded-lg mt-4" required>
+            <input type="email" id="sender-email" placeholder="Enter Email Address" class="p-2 border rounded-lg mt-2" required>
+            <div id="recaptcha-container" class="my-4 flex justify-center"></div>
+            <button id="final-send-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2">
+                <span class="btn-text">Send</span>
+            </button>
+            <p class="text-gray-500 text-center mt-2" style="font-size: 10pt;">We collect this information to prevent abuse. Your details are kept private and are not sold or used for any marketing activity.</p>
+        </div>
+        <div id="check-email-view" class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm flex-col gap-4 text-center hidden">
+             <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-blue-500 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+             <h3 class="text-xl font-bold">Check your email</h3>
+             <p class="text-gray-600 mt-2">We've sent a confirmation link to your email address. Please click the link to send your postcard.</p>
+        </div>
+    </div>
+
+    <!-- PIXABAY SEARCH MODAL -->
+    <div id="search-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">Search for an Image</h3><button id="close-search-modal-btn" class="text-2xl leading-none">&times;</button></div>
+            <div class="flex flex-col gap-2 mb-4 w-full">
+                <input type="text" id="search-input" placeholder="e.g., 'sunny beach'" class="w-full p-2 border rounded-lg">
+                <button id="search-btn" class="w-full bg-blue-500 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2"><span class="btn-text">Search</span></button>
+            </div>
+            <div id="search-loader" class="hidden justify-center items-center py-10 w-full"><div class="loader"></div></div>
+            <div id="search-results" class="flex-grow overflow-y-auto min-h-0"></div>
+        </div>
+    </div>
+    
+    <!-- ZOOM MODAL -->
+    <div id="zoom-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center p-4 z-50">
+        <img id="zoomed-image" src="" class="max-w-[90vw] max-h-[90vh] object-contain">
+        <button id="close-zoom-modal-btn" class="absolute top-4 right-4 text-white text-3xl font-bold">&times;</button>
+    </div>
+
+    <script src="js/app.js" type="module"></script>
+</body>
+</html>
+
