@@ -9,9 +9,9 @@ const json = (res, status, payload) => {
 let pool; // reuse pool across invocations
 function getPool() {
   if (pool) return pool;
-  const conn = process.env.PC_POSTGRES_URL;
+  const conn = process.env.POSTGRES_URL;
   if (!conn) {
-    throw new Error('MISSING_ENV_PC_POSTGRES_URL');
+    throw new Error('MISSING_ENV_POSTGRES_URL');
   }
   // Initialize pool using the connection string
   pool = createPool({ connectionString: conn });
@@ -63,11 +63,11 @@ export default async function handler(req, res) {
     return json(res, 200, { message: 'Tables created and configuration initialized.' });
   } catch (err) {
     // Handle missing env separately to provide clearer guidance
-    if (err?.message === 'MISSING_ENV_PC_POSTGRES_URL') {
-      console.error('PC_POSTGRES_URL is not defined');
+    if (err?.message === 'MISSING_ENV_POSTGRES_URL') {
+      console.error('POSTGRES_URL is not defined');
       return json(res, 500, {
         error: 'Missing environment variable',
-        details: 'PC_POSTGRES_URL is not defined. Set it in Vercel/your environment.',
+        details: 'POSTGRES_URL is not defined. Set it in Vercel/your environment.',
       });
     }
     // Library initialization error or SQL error
