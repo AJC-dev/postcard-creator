@@ -95,37 +95,25 @@ function populateDomReferences() {
 }
 
 async function loadConfigAndInitialize() {
-    // try {
-    //     const response = await fetch('/api/get-config');
-    //     if (!response.ok) {
-    //          throw new Error('Could not fetch config from API');
-    //     }
-    //     postcardConfig = await response.json();
-    // } catch (error) {
-    //     console.error("Could not fetch from DB, using local defaults.", error);
-    //     postcardConfig = fallbackConfig;
-    //     postcardConfig.apiKeys = { recaptchaSiteKey: '', pixabayApiKey: '' }; 
-    //     showGlobalError("Could not load application configuration. Using offline defaults.");
-    // } finally {
-    //     applyConfiguration();
-    //     initializePostcardCreator();
-    //     dom.loadingOverlay.style.display = 'none';
-    //     dom.mainContent.style.display = 'block';
-    // }
-
-
     try {
         const response = await fetch('/api/get-config');
-        if (response.ok) {
-            const dbConfig = await response.json();
-            currentConfig = dbConfig;
-            // 3. If successful, re-populate the form with the live data.
-            populateForm(currentConfig);
-        } else {
-             console.warn('No configuration found in database. Using local defaults.');
+        if (!response.ok) {
+             throw new Error('Could not fetch config from API');
         }
+        postcardConfig = await response.json();
+        console.error("Nomi1");
     } catch (error) {
         console.error("Could not fetch from DB, using local defaults.", error);
+        postcardConfig = fallbackConfig;
+        postcardConfig.apiKeys = { recaptchaSiteKey: '', pixabayApiKey: '' }; 
+        showGlobalError("Could not load application configuration. Using offline defaults.");
+        console.error("Nomi2");
+    } finally {
+        applyConfiguration();
+        initializePostcardCreator();
+        dom.loadingOverlay.style.display = 'none';
+        dom.mainContent.style.display = 'block';
+        console.error("Nomi3");
     }
 }
 
