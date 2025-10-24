@@ -106,7 +106,7 @@ async function loadConfigAndInitialize() {
         console.error("Could not fetch from DB, using local defaults.", error);
         postcardConfig = fallbackConfig;
         postcardConfig.apiKeys = { recaptchaSiteKey: '', pixabayApiKey: '' }; 
-        showGlobalError("Could not load application configuration. Using offline defaults.");
+        // showGlobalError("Could not load application configuration. Using offline defaults.");
         console.error("Nomi2");
     } finally {
         applyConfiguration();
@@ -892,12 +892,12 @@ const debouncedProfanityCheck = debounce(checkForProfanityAPI, 500);
 
 function initializePostcardCreator() {
     
-    // if (!postcardConfig.apiKeys || !postcardConfig.apiKeys.recaptchaSiteKey) {
-    // console.warn("ReCAPTCHA key not configured - form validation may be limited");
-    //     dom.findImageButton.disabled = true;
-    //     dom.sendPostcardBtn.disabled = true;
-    //     return;
-    // }
+    if (!postcardConfig.apiKeys || !postcardConfig.apiKeys.recaptchaSiteKey) {
+    console.warn("ReCAPTCHA key not configured - form validation may be limited");
+        dom.findImageButton.disabled = true;
+        dom.sendPostcardBtn.disabled = true;
+        return;
+    }
 
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('sendAgain') === 'true') {
