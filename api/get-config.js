@@ -79,14 +79,28 @@ export default async function handler(request, response) {
       .eq('id', 1)
       .single();
 
+    let config;
     if (error) {
       console.error('Error fetching configuration:', error);
-      return response.status(200).json(fallbackConfig);
+      config = fallbackConfig;
+    } else {
+      config = data.settings || fallbackConfig;
     }
 
-    return response.status(200).json(data.settings || fallbackConfig);
+    // Add API keys from environment variables
+    config.apiKeys = {
+      recaptchaSiteKey: process.env.RECAPTCHA_SITE_KEY || '',
+      pixabayApiKey: process.env.PIXABAY_API_KEY || ''
+    };
+
+    return response.status(200).json(config);
   } catch (error) {
     console.error('Error in get-config:', error);
-    return response.status(200).json(fallbackConfig);
+    const config = fallbackConfig;
+    config.apiKeys = {
+      recaptchaSiteKey: process.env.RECAPTCHA_SITE_KEY || '',
+      pixabayApiKey: process.env.PIXABAY_API_KEY || ''
+    };
+    return response.status(200).json(config);
   }
 }
