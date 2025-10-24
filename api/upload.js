@@ -1,18 +1,22 @@
-import { put } from '@vercel/blob';
+import { createClient } from '@supabase/supabase-js';
 
-// Helper function to stream request body to a buffer using the classic Node.js event model for maximum compatibility.
+function getSupabaseClient() {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Missing Supabase environment variables');
+  }
+
+  return createClient(supabaseUrl, supabaseKey);
+}
+
 function streamToBuffer(request) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    request.on('data', (chunk) => {
-      chunks.push(chunk);
-    });
-    request.on('end', () => {
-      resolve(Buffer.concat(chunks));
-    });
-    request.on('error', (error) => {
-      reject(error);
-    });
+    request.on('data', (chunk) => { chunks.push(chunk); });
+    request.on('end', () => { resolve(Buffer.concat(chunks)); });
+    request.on('error', (error) => { reject(error); });
   });
 }
 
@@ -33,17 +37,39 @@ export default async function handler(request, response) {
     }
 
     const fileBuffer = await streamToBuffer(request);
+    const supabase = getSupabaseClient();
 
-    const blob = await put(filename, fileBuffer, {
-      access: 'public',
+    const { data, error } = await supabase.storage
+      .from('postcard-images')
+      .upload(filename, fileBuffer, {
+        contentType: request.headers['content-type'] || 'application/octet-stream',
+        upsert: true
+      });
+
+    if (error) {
+      console.error('Supabase upload error:', error);
+      return response.status(500).json({ 
+        error: 'Failed to upload file.', 
+        details: error.message 
+      });
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('postcard-images')
+      .getPublicUrl(filename);
+
+    return response.status(200).json({
+      url: publicUrlData.publicUrl,
+      pathname: filename,
+      contentType: request.headers['content-type'] || 'application/octet-stream',
+      uploadedAt: new Date().toISOString()
     });
-
-    return response.status(200).json(blob);
-
   } catch (error) {
     console.error('Upload failed:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
-    return response.status(500).json({ error: 'Failed to upload file.', details: errorMessage });
+    return response.status(500).json({ 
+      error: 'Failed to upload file.', 
+      details: errorMessage 
+    });
   }
 }
-
