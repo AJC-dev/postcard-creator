@@ -890,7 +890,7 @@ const debouncedProfanityCheck = debounce(checkForProfanityAPI, 500);
 function initializePostcardCreator() {
     
     if (!postcardConfig.apiKeys || !postcardConfig.apiKeys.recaptchaSiteKey) {
-        showGlobalError("Application is not configured correctly. API keys are missing.");
+    console.warn("ReCAPTCHA key not configured - form validation may be limited");
         dom.findImageButton.disabled = true;
         dom.sendPostcardBtn.disabled = true;
         return;
