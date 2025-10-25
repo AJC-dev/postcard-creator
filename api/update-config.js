@@ -1,4 +1,13 @@
-import { sql } from '@vercel/postgres';
+import pkg from 'pg';
+const { Pool } = pkg;
+
+// Create a connection pool to Supabase
+const pool = new Pool({
+  connectionString: process.env.POSTGRES_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
 
 function parseJSONBody(request) {
   return new Promise((resolve, reject) => {
@@ -31,13 +40,14 @@ export default async function handler(request, response) {
     try {
         const newConfig = await parseJSONBody(request);
         
-        // Use JSON.stringify to pass the object correctly to the SQL query
-        await sql`
-            INSERT INTO configuration (id, settings)
-            VALUES (1, ${JSON.stringify(newConfig)})
-            ON CONFLICT (id) DO UPDATE
-            SET settings = EXCLUDED.settings;
-        `;
+        // Use parameterized query with JSONB
+        await pool.query(
+            `INSERT INTO configuration (id, settings, updated_at)
+             VALUES (1, $1, NOW())
+             ON CONFLICT (id) DO UPDATE
+             SET settings = EXCLUDED.settings, updated_at = NOW()`,
+            [JSON.stringify(newConfig)]
+        );
 
         console.log("Successfully saved new configuration to Postgres.");
 
@@ -49,4 +59,3 @@ export default async function handler(request, response) {
         return response.status(500).json({ message: 'Error saving configuration.', details: errorMessage });
     }
 }
-
