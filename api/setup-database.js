@@ -5,9 +5,7 @@ import fallbackConfig from '../js/config.js';
 // Create a connection pool to Supabase
 const pool = new Pool({
   connectionString: process.env.POSTGRES_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
+  ssl: false
 });
 
 // Helper to send JSON responses
