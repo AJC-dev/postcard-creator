@@ -3,10 +3,15 @@ const { Pool } = pkg;
 
 // Create a connection pool to Supabase
 const pool = new Pool({
-  connectionString: process.env.POSTGRES_URL,
-  ssl: false
+  host: 'db.jjxmhgmudsplandntmds.supabase.co',
+  port: 5432,
+  database: 'postgres',
+  user: 'postgres.jjxmhgmudsplandntmds',
+  password: process.env.POSTGRES_PASSWORD || 'cv4TTrL3MQs9xQhX',
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
-
 function parseJSONBody(request) {
   return new Promise((resolve, reject) => {
     let body = '';
