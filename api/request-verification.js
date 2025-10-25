@@ -1,8 +1,17 @@
-import { sql } from '@vercel/postgres';
+import pkg from 'pg';
+const { Pool } = pkg;
 import jwt from 'jsonwebtoken';
 import sgMail from '@sendgrid/mail';
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+// Create a connection pool to Supabase
+const pool = new Pool({
+  connectionString: process.env.POSTGRES_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
 
 function parseJSONBody(request) {
   return new Promise((resolve, reject) => {
@@ -28,8 +37,9 @@ export default async function handler(request, response) {
         const { postcardData } = await parseJSONBody(request);
         const { sender, recipient, emailConfig } = postcardData;
         
-        const { rows } = await sql`SELECT settings FROM configuration WHERE id = 1;`;
-        const config = rows[0]?.settings;
+        // Get configuration using pg Pool
+        const configResult = await pool.query('SELECT settings FROM configuration WHERE id = 1');
+        const config = configResult.rows[0]?.settings;
         
         if (!config || !config.limits) {
              throw new Error("Usage limits are not configured in the database.");
@@ -38,11 +48,12 @@ export default async function handler(request, response) {
 
         const cutoffDate = new Date(Date.now() - limitDays * 24 * 60 * 60 * 1000);
         
-        const { rows: logRows } = await sql`
-            SELECT COUNT(*) FROM postcard_logs 
-            WHERE sender_email = ${sender.email} AND sent_at > ${cutoffDate.toISOString()};
-        `;
-        const recentPostcardsCount = parseInt(logRows[0].count, 10);
+        // Check postcard logs using pg Pool
+        const logResult = await pool.query(
+            'SELECT COUNT(*) FROM postcard_logs WHERE sender_email = $1 AND sent_at > $2',
+            [sender.email, cutoffDate.toISOString()]
+        );
+        const recentPostcardsCount = parseInt(logResult.rows[0].count, 10);
         
         if (recentPostcardsCount >= postcardLimit) {
             return response.status(429).json({ message: `Usage limit reached. You can send ${postcardLimit} postcards every ${limitDays} days.` });
@@ -93,4 +104,3 @@ export default async function handler(request, response) {
         return response.status(500).json({ message: 'Internal Server Error', details: errorMessage });
     }
 }
-
