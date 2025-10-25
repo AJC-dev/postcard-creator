@@ -6,9 +6,7 @@ import sgMail from '@sendgrid/mail';
 // Create a connection pool to Supabase
 const pool = new Pool({
   connectionString: process.env.POSTGRES_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
+  ssl: false
 });
 
 // Makes the actual API call to the Zap-Post print service
