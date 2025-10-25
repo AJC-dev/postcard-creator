@@ -1,0 +1,66 @@
+body {
+    font-family: 'Inter', sans-serif;
+}
+/* START: Enforce A5 aspect ratio for previews */
+#final-preview-front-container, #final-preview-back-container {
+    aspect-ratio: 210 / 148;
+}
+/* END: Enforce A5 aspect ratio for previews */
+.accordion-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-in-out, padding 0.3s ease-in-out;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+.accordion-content.open {
+    max-height: 2000px; /* Increased max-height to prevent clipping */
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+}
+.accordion-header.open .accordion-icon {
+    transform: rotate(180deg);
+}
+.loader {
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #3498db;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 8px; background: #e5e7eb;
+    border-radius: 4px; outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 20px; height: 20px; background: #0E0B3D;
+    cursor: pointer; border-radius: 50%;
+}
+input[type="range"]::-moz-range-thumb {
+    width: 20px; height: 20px; background: #0E0B3D;
+    cursor: pointer; border-radius: 50%;
+}
+/* Masonry Layout Styles */
+.grid-item {
+    width: 33.333%;
+    padding: 2px; /* Equivalent to gap-1 */
+    box-sizing: border-box;
+}
+@media (max-width: 640px) {
+    .grid-item {
+        width: 50%;
+    }
+}
+.grid-item img {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 0.5rem;
+}
