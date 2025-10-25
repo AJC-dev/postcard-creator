@@ -8,9 +8,7 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 // Create a connection pool to Supabase
 const pool = new Pool({
   connectionString: process.env.POSTGRES_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
+  ssl: false
 });
 
 function parseJSONBody(request) {
