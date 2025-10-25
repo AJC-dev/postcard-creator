@@ -2,10 +2,16 @@ import pkg from 'pg';
 const { Pool } = pkg;
 import fallbackConfig from '../js/config.js';
 
-// Create a connection pool to Supabase
+// Use direct connection to Supabase (not pooler)
 const pool = new Pool({
-  connectionString: process.env.POSTGRES_URL,
-  ssl: false
+  host: 'db.jjxmhgmudsplandntmds.supabase.co',
+  port: 5432,
+  database: 'postgres',
+  user: 'postgres.jjxmhgmudsplandntmds',
+  password: process.env.POSTGRES_PASSWORD || 'cv4TTrL3MQs9xQhX',
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 // simple deep merge without external deps
