@@ -1,6 +1,15 @@
-import { sql } from '@vercel/postgres';
+import pkg from 'pg';
+const { Pool } = pkg;
 import jwt from 'jsonwebtoken';
 import sgMail from '@sendgrid/mail';
+
+// Create a connection pool to Supabase
+const pool = new Pool({
+  connectionString: process.env.POSTGRES_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
 
 // Makes the actual API call to the Zap-Post print service
 async function sendToPrintAPI(postcardData) {
@@ -12,10 +21,9 @@ async function sendToPrintAPI(postcardData) {
     }
 
     // Fetch the live config to get the promo image URL
-    const { rows } = await sql`SELECT settings FROM configuration WHERE id = 1;`;
-    const config = rows[0]?.settings;
+    const result = await pool.query('SELECT settings FROM configuration WHERE id = 1');
+    const config = result.rows[0]?.settings;
     const postcardPromoImageUrl = config?.postcardPromo?.imageURL || "";
-
 
     const customerId = `${sender.email}${recipient.postcode.replace(/\s/g, '')}`;
 
@@ -62,7 +70,7 @@ async function sendToPrintAPI(postcardData) {
         body: JSON.stringify(apiPayload)
     });
 
-    if (!response.ok) { // Check for non-2xx status codes
+    if (!response.ok) {
         const errorBody = await response.text();
         throw new Error(`Failed to send postcard to print API. Status: ${response.status}. Body: ${errorBody}`);
     }
@@ -71,9 +79,7 @@ async function sendToPrintAPI(postcardData) {
     return response.json();
 }
 
-
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-
 
 export default async function handler(request, response) {
     const { token } = request.query;
@@ -88,27 +94,30 @@ export default async function handler(request, response) {
         const { sender, recipient } = postcardData;
         
         // Fetch the live configuration from the database
-        const { rows } = await sql`SELECT settings FROM configuration WHERE id = 1;`;
-        const config = rows[0]?.settings;
+        const configResult = await pool.query('SELECT settings FROM configuration WHERE id = 1');
+        const config = configResult.rows[0]?.settings;
         if (!config) {
             throw new Error("Live configuration not found in database.");
         }
         const { confirmationEmail: confirmationEmailConfig } = config;
         
         // Log the postcard send event
-        await sql`
-            INSERT INTO postcard_logs (
+        await pool.query(
+            `INSERT INTO postcard_logs (
                 sender_name, sender_email, 
-                recipient_name, recipient_line1, recipient_line2, recipient_city, recipient_postcode, recipient_country, 
+                recipient_name, recipient_email, recipient_address,
                 front_image_url, back_image_url
-            )
-            VALUES (
-                ${sender.name}, ${sender.email}, 
-                ${recipient.name}, ${recipient.line1}, ${recipient.line2 || ''}, ${recipient.city}, ${recipient.postcode}, ${recipient.country},
-                ${postcardData.frontImageUrl}, ${postcardData.backImageUrl}
-            );
-        `;
-
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [
+                sender.name, 
+                sender.email,
+                recipient.name,
+                recipient.email || '',
+                `${recipient.line1}, ${recipient.line2 || ''}, ${recipient.city}, ${recipient.postcode}, ${recipient.country}`,
+                postcardData.frontImageUrl,
+                postcardData.backImageUrl
+            ]
+        );
 
         // Make the final call to the print API
         await sendToPrintAPI(postcardData);
@@ -138,7 +147,6 @@ export default async function handler(request, response) {
         };
         await sgMail.send(confirmationMsg);
 
-
         // Redirect to the success page
         const proto = request.headers['x-forwarded-proto'] || 'http';
         const host = request.headers['x-forwarded-host'] || request.headers.host;
@@ -148,11 +156,8 @@ export default async function handler(request, response) {
         return response.end();
 
     } catch (error) {
-        console.error('Verification error:', error);
-        if (error instanceof jwt.JsonWebTokenError) {
-            return response.status(401).send('<h1>Error</h1><p>Your verification link is invalid or has expired. Please try sending your postcard again.</p>');
-        }
-        return response.status(500).send(`<h1>Error</h1><p>An unexpected error occurred during verification. ${error.message}</p>`);
+        console.error('Verify and send error:', error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        return response.status(500).send(`<h1>Error</h1><p>Failed to send postcard: ${errorMessage}</p>`);
     }
 }
-
