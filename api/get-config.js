@@ -11,7 +11,7 @@ const pool = new Pool({
   password: process.env.POSTGRES_PASSWORD,
   ssl: {
     rejectUnauthorized: false
-  }
+  } 
 });
 
 // simple deep merge without external deps
