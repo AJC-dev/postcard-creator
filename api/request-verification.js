@@ -6,16 +6,32 @@ import sgMail from '@sendgrid/mail';
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 // Use direct connection to Supabase (not pooler)
-const pool = new Pool({
-  host: 'db.jjxmhgmudsplandntmds.supabase.co',
-  port: 5432,
-  database: 'postgres',
-  user: 'postgres.jjxmhgmudsplandntmds',
-  password: process.env.POSTGRES_PASSWORD || 'cv4TTrL3MQs9xQhX',
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
+// const pool = new Pool({
+//   host: 'db.jjxmhgmudsplandntmds.supabase.co',
+//   port: 5432,
+//   database: 'postgres',
+//   user: 'postgres.jjxmhgmudsplandntmds',
+//   password: process.env.POSTGRES_PASSWORD || 'cv4TTrL3MQs9xQhX',
+//   ssl: {
+//     rejectUnauthorized: false
+//   }
+// });
+
+const pool = new Pool(
+  connectionString
+    ? {
+        connectionString,
+        ssl: { rejectUnauthorized: false }, // Supabase usually requires SSL
+      }
+    : {
+        host: process.env.PGHOST,
+        port: Number(process.env.PGPORT ?? 5432),
+        database: process.env.PGDATABASE,
+        user: process.env.PGUSER,
+        password: process.env.PGPASSWORD,
+        ssl: { rejectUnauthorized: false },
+      }
+);
 
 function parseJSONBody(request) {
   return new Promise((resolve, reject) => {

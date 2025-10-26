@@ -3,16 +3,32 @@ const { Pool } = pkg;
 import fallbackConfig from '../js/config.js';
 
 // Create a connection pool to Supabase
-const pool = new Pool({
-  host: 'db.jjxmhgmudsplandntmds.supabase.co',
-  port: 5432,
-  database: 'postgres',
-  user: 'postgres.jjxmhgmudsplandntmds',
-  password: process.env.POSTGRES_PASSWORD || 'cv4TTrL3MQs9xQhX',
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
+// const pool = new Pool({
+//   host: 'db.jjxmhgmudsplandntmds.supabase.co',
+//   port: 5432,
+//   database: 'postgres',
+//   user: 'postgres.jjxmhgmudsplandntmds',
+//   password: process.env.POSTGRES_PASSWORD || 'cv4TTrL3MQs9xQhX',
+//   ssl: {
+//     rejectUnauthorized: false
+//   }
+// });
+
+const pool = new Pool(
+  connectionString
+    ? {
+        connectionString,
+        ssl: { rejectUnauthorized: false }, // Supabase usually requires SSL
+      }
+    : {
+        host: process.env.PGHOST,
+        port: Number(process.env.PGPORT ?? 5432),
+        database: process.env.PGDATABASE,
+        user: process.env.PGUSER,
+        password: process.env.PGPASSWORD,
+        ssl: { rejectUnauthorized: false },
+      }
+);
 
 // Helper to send JSON responses
 const json = (res, status, payload) => {
