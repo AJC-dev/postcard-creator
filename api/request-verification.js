@@ -5,13 +5,13 @@ import sgMail from '@sendgrid/mail';
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-// Use direct connection to Supabase (not pooler)
+// Create connection pool using environment variables only - NO hardcoding!
 const pool = new Pool({
-  host: 'db.jjxmhgmudsplandntmds.supabase.co',
+  host: process.env.POSTGRES_HOST,
   port: 5432,
-  database: 'postgres',
-  user: 'postgres.jjxmhgmudsplandntmds',
-  password: process.env.POSTGRES_PASSWORD || 'cv4TTrL3MQs9xQhX',
+  database: process.env.POSTGRES_DATABASE,
+  user: process.env.POSTGRES_USER,
+  password: process.env.POSTGRES_PASSWORD,
   ssl: {
     rejectUnauthorized: false
   }
