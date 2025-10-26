@@ -5,7 +5,7 @@ import sgMail from '@sendgrid/mail';
 
 // Use environment variables - NO hardcoding!
 const pool = new Pool({
-  host: process.env.POSTGRES_HOST,
+  host: process.env.POSTGRES_HOST, 
   port: 5432,
   database: process.env.POSTGRES_DATABASE,
   user: process.env.POSTGRES_USER, 
