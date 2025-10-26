@@ -3,35 +3,16 @@ const { Pool } = pkg;
 import jwt from 'jsonwebtoken';
 import sgMail from '@sendgrid/mail';
 
-// Create a connection pool to Supabase
-// const pool = new Pool({
-//   host: 'db.jjxmhgmudsplandntmds.supabase.co',
-//   port: 5432,
-//   database: 'postgres',
-//   user: 'postgres.jjxmhgmudsplandntmds',
-//   password: process.env.POSTGRES_PASSWORD || 'cv4TTrL3MQs9xQhX',
-//   ssl: {
-//     rejectUnauthorized: false
-//   }
-// });
+// Use environment variables - NO hardcoding!
+const pool = new Pool({
+  host: process.env.POSTGRES_HOST,
+  port: 5432,
+  database: process.env.POSTGRES_DATABASE,
+  user: process.env.POSTGRES_USER,
+  password: process.env.POSTGRES_PASSWORD,
+  ssl: { rejectUnauthorized: false }
+});
 
-const pool = new Pool(
-  connectionString
-    ? {
-        connectionString,
-        ssl: { rejectUnauthorized: false },
-      }
-    : {
-        host: process.env.PGHOST,
-        port: Number(process.env.PGPORT ?? 5432),
-        database: process.env.PGDATABASE,
-        user: process.env.PGUSER,
-        password: process.env.PGPASSWORD,
-        ssl: { rejectUnauthorized: false },
-      }
-);
-
-// Makes the actual API call to the Zap-Post print service
 async function sendToPrintAPI(postcardData) {
     const { sender, recipient, frontImageUrl, backImageUrl } = postcardData;
     const { ZAPPOST_USERNAME, ZAPPOST_PASSWORD, ZAPPOST_CAMPAIGN_ID } = process.env;
@@ -40,46 +21,41 @@ async function sendToPrintAPI(postcardData) {
         throw new Error("Missing required Zap-Post environment variables.");
     }
 
-    // Fetch the live config to get the promo image URL
     const result = await pool.query('SELECT settings FROM configuration WHERE id = 1');
     const config = result.rows[0]?.settings;
     const postcardPromoImageUrl = config?.postcardPromo?.imageURL || "";
 
     const customerId = `${sender.email}${recipient.postcode.replace(/\s/g, '')}`;
 
-    // Structure the payload according to Zap-Post's API documentation
     const apiPayload = {
         campaignId: ZAPPOST_CAMPAIGN_ID,
         scheduledSendDateId: "",
         onlyValidRecords: true,
-        submissions: [
-            {
-                customerid: customerId,
-                email: sender.email,
-                salutation: "",
-                firstname: recipient.name,
-                surname: "",
-                companyname: "",
-                address1: recipient.line1,
-                address2: recipient.line2 || "",
-                address3: "",
-                city: recipient.city,
-                postcode: recipient.postcode,
-                country: recipient.country,
-                currency: "GBP",
-                language: "en",
-                customdata: {
-                    "front": frontImageUrl,
-                    "message": backImageUrl,
-                    "sender": sender.name,
-                    "promo": postcardPromoImageUrl
-                }
+        submissions: [{
+            customerid: customerId,
+            email: sender.email,
+            salutation: "",
+            firstname: recipient.name,
+            surname: "",
+            companyname: "",
+            address1: recipient.line1,
+            address2: recipient.line2 || "",
+            address3: "",
+            city: recipient.city,
+            postcode: recipient.postcode,
+            country: recipient.country,
+            currency: "GBP",
+            language: "en",
+            customdata: {
+                "front": frontImageUrl,
+                "message": backImageUrl,
+                "sender": sender.name,
+                "promo": postcardPromoImageUrl
             }
-        ]
+        }]
     };
 
     const basicAuth = Buffer.from(`${ZAPPOST_USERNAME}:${ZAPPOST_PASSWORD}`).toString('base64');
-
     const response = await fetch('https://api.zappost.com/api/v1/records', {
         method: 'POST',
         headers: {
@@ -103,7 +79,6 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 export default async function handler(request, response) {
     const { token } = request.query;
-
     if (!token) {
         return response.status(400).send('<h1>Error</h1><p>Missing verification token.</p>');
     }
@@ -113,7 +88,6 @@ export default async function handler(request, response) {
         const { postcardData } = decoded;
         const { sender, recipient } = postcardData;
         
-        // Fetch the live configuration from the database
         const configResult = await pool.query('SELECT settings FROM configuration WHERE id = 1');
         const config = configResult.rows[0]?.settings;
         if (!config) {
@@ -121,53 +95,32 @@ export default async function handler(request, response) {
         }
         const { confirmationEmail: confirmationEmailConfig } = config;
         
-        // Log the postcard send event
         await pool.query(
-            `INSERT INTO postcard_logs (
-                sender_name, sender_email, 
-                recipient_name, recipient_email, recipient_address,
-                front_image_url, back_image_url
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [
-                sender.name, 
-                sender.email,
-                recipient.name,
-                recipient.email || '',
-                `${recipient.line1}, ${recipient.line2 || ''}, ${recipient.city}, ${recipient.postcode}, ${recipient.country}`,
-                postcardData.frontImageUrl,
-                postcardData.backImageUrl
-            ]
+            `INSERT INTO postcard_logs (sender_name, sender_email, recipient_name, recipient_email, recipient_address, front_image_url, back_image_url)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [sender.name, sender.email, recipient.name, recipient.email || '', 
+             `${recipient.line1}, ${recipient.line2 || ''}, ${recipient.city}, ${recipient.postcode}, ${recipient.country}`,
+             postcardData.frontImageUrl, postcardData.backImageUrl]
         );
 
-        // Make the final call to the print API
         await sendToPrintAPI(postcardData);
 
         let subject = confirmationEmailConfig.subject.replace(/{{senderName}}/g, sender.name).replace(/{{recipientName}}/g, recipient.name);
         let body = confirmationEmailConfig.body.replace(/{{senderName}}/g, sender.name).replace(/{{recipientName}}/g, recipient.name);
 
-        // Send the final confirmation email
         const confirmationMsg = {
             to: sender.email,
-            from: {
-                email: process.env.SENDGRID_FROM_EMAIL,
-                name: confirmationEmailConfig.senderName
-            },
+            from: { email: process.env.SENDGRID_FROM_EMAIL, name: confirmationEmailConfig.senderName },
             subject: subject,
-            html: `
-                <div style="font-family: sans-serif; text-align: center; padding: 20px;">
-                    <h2>${confirmationEmailConfig.senderName}</h2>
-                    <p>${body}</p>
-                    <hr style="margin: 20px 0;"/>
+            html: `<div style="font-family: sans-serif; text-align: center; padding: 20px;">
+                    <h2>${confirmationEmailConfig.senderName}</h2><p>${body}</p><hr style="margin: 20px 0;"/>
                     <p>${confirmationEmailConfig.promoText}</p>
                     <a href="${confirmationEmailConfig.promoLinkURL}" target="_blank">
                         <img src="${confirmationEmailConfig.promoImageURL}" alt="Promo Image" style="max-width: 100%; width: 300px; margin-top: 10px; border-radius: 8px;">
-                    </a>
-                </div>
-            `
+                    </a></div>`
         };
         await sgMail.send(confirmationMsg);
 
-        // Redirect to the success page
         const proto = request.headers['x-forwarded-proto'] || 'http';
         const host = request.headers['x-forwarded-host'] || request.headers.host;
         const successUrl = new URL('/success.html', `${proto}://${host}`);
