@@ -5,7 +5,7 @@ function streamToBuffer(request) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     request.on('data', (chunk) => {
-      chunks.push(chunk);
+      chunks.push(chunk); 
     });
     request.on('end', () => {
       resolve(Buffer.concat(chunks));
