@@ -21,7 +21,7 @@ export default async function handler(req, res) {
 
   try {
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS postcard_logs (
+      CREATE TABLE IF NOT EXISTS postcard_logs ( 
         id SERIAL PRIMARY KEY, sender_name VARCHAR(255), sender_email VARCHAR(255) NOT NULL,
         recipient_name VARCHAR(255), recipient_email VARCHAR(255), recipient_address TEXT,
         sent_at TIMESTAMP DEFAULT NOW(), status VARCHAR(50) DEFAULT 'sent',
