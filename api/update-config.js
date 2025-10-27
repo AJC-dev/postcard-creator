@@ -2,8 +2,8 @@ import pkg from 'pg';
 const { Pool } = pkg;
 
 const pool = new Pool({
-  connectionString: process.env.POSTGRES_URL,
-  ssl: false 
+  connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
+  ssl: false
 });
 
 function parseJSONBody(request) {
