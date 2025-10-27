@@ -1,14 +1,9 @@
 import pkg from 'pg';
 const { Pool } = pkg;
 
-// Use environment variables - NO hardcoding!
 const pool = new Pool({
-  host: process.env.POSTGRES_HOST,
-  port: 5432,
-  database: process.env.POSTGRES_DATABASE,
-  user: process.env.POSTGRES_USER,
-  password: process.env.POSTGRES_PASSWORD,  
-  ssl: { rejectUnauthorized: false }
+  connectionString: process.env.POSTGRES_URL,
+  ssl: false 
 });
 
 function parseJSONBody(request) {
