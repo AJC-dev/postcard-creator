@@ -4,7 +4,7 @@ const { Pool } = pkg;
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
   ssl: false,
-  max: 1,
+  max: 1, 
   connectionTimeoutMillis: 10000
 });
 
