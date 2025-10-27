@@ -3,8 +3,10 @@ const { Pool } = pkg;
 import fallbackConfig from '../js/config.js';
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL, 
-  ssl: false
+  connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
+  ssl: false,
+  max: 1,
+  connectionTimeoutMillis: 10000
 });
 
 // simple deep merge without external deps
