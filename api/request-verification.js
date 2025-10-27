@@ -6,8 +6,8 @@ import sgMail from '@sendgrid/mail';
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const pool = new Pool({
-  connectionString: process.env.POSTGRES_URL,
-  ssl: false 
+  connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
+  ssl: false
 });
 
 function parseJSONBody(request) {
