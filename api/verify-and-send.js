@@ -4,8 +4,8 @@ import jwt from 'jsonwebtoken';
 import sgMail from '@sendgrid/mail';
 
 const pool = new Pool({
-  connectionString: process.env.POSTGRES_URL,
-  ssl: false 
+  connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
+  ssl: false
 });
 
 async function sendToPrintAPI(postcardData) {
