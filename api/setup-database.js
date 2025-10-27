@@ -3,8 +3,8 @@ const { Pool } = pkg;
 import fallbackConfig from '../js/config.js';
 
 const pool = new Pool({
-  connectionString: process.env.POSTGRES_URL,
-  ssl: false 
+  connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
+  ssl: false
 });
 
 const json = (res, status, payload) => res.status(status).json(payload);
