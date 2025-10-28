@@ -319,7 +319,6 @@ function setupImageUploader(uploaderId, targetInputId, previewId) {
                 preview.style.opacity = '1';
                 targetInput.disabled = false;
 
-                alert('Promo image uploaded successfully!');
             } catch (error) {
                 console.error('Upload error:', error);
                 alert('Failed to upload promo image: ' + error.message);
