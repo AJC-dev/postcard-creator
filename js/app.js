@@ -853,6 +853,13 @@ async function handleFinalSend() {
             frontImageUrlForEmail: frontEmailBlobData.url,
             backImageUrl: backPrintBlobData.url, 
             backImageUrlWithAddress: backEmailBlobData.url,
+            emailConfig: {
+                subject: postcardConfig.email.subject,
+                body: postcardConfig.email.body,
+                buttonColor: postcardConfig.email.buttonColor,
+                buttonTextColor: postcardConfig.email.buttonTextColor,
+                senderName: postcardConfig.email.senderName
+            },
             recaptchaToken: recaptchaToken
         };
         
@@ -1146,4 +1153,3 @@ function initializePostcardCreator() {
     toggleAccordion(document.getElementById('accordion-header-5'), true);
     toggleAccordion(document.getElementById('accordion-header-1'), true);
 }
-
