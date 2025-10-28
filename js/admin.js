@@ -67,6 +67,7 @@ function setupEventListeners() {
     setupImageUploader('success-favicon-uploader', 'successFaviconURL', 'success-favicon-preview');
     setupImageUploader('promo-image-uploader', 'successPromoImageURL', 'promo-image-preview');
     setupImageUploader('confirmation-promo-image-uploader', 'confirmationPromoImageURL', 'confirmation-promo-image-preview');
+    setupImageUploader('postcard-promo-image-uploader', 'postcardPromoImageURL', 'postcard-promo-image-preview');
 
 
     document.getElementById('faviconURL').addEventListener('input', (e) => updatePreviewFromInput(e.target.value, 'favicon-preview'));
@@ -74,6 +75,7 @@ function setupEventListeners() {
     document.getElementById('successFaviconURL').addEventListener('input', (e) => updatePreviewFromInput(e.target.value, 'success-favicon-preview'));
     document.getElementById('successPromoImageURL').addEventListener('input', (e) => updatePreviewFromInput(e.target.value, 'promo-image-preview'));
     document.getElementById('confirmationPromoImageURL').addEventListener('input', (e) => updatePreviewFromInput(e.target.value, 'confirmation-promo-image-preview'));
+    document.getElementById('postcardPromoImageURL').addEventListener('input', (e) => updatePreviewFromInput(e.target.value, 'postcard-promo-image-preview'));
 
 
     document.querySelectorAll('.copy-btn').forEach(button => {
@@ -149,6 +151,15 @@ function populateForm(config) {
     // Usage Limits
     document.getElementById('postcardLimit').value = config.limits.postcardLimit;
     document.getElementById('limitDays').value = config.limits.limitDays;
+    
+    // Postcard Promo Settings
+    if (config.postcardPromo) {
+        updatePreviewFromInput(config.postcardPromo.imageURL, 'postcard-promo-image-preview');
+        document.getElementById('postcardPromoImageURL').value = config.postcardPromo.imageURL;
+    } else {
+        document.getElementById('postcardPromoImageURL').value = '';
+        document.getElementById('postcard-promo-image-preview').src = '';
+    }
 }
 
 
@@ -228,6 +239,9 @@ async function handleFormSubmit(event) {
             postcardLimit: parseInt(document.getElementById('postcardLimit').value, 10),
             limitDays: parseInt(document.getElementById('limitDays').value, 10)
         },
+        postcardPromo: {
+            imageURL: document.getElementById('postcardPromoImageURL').value
+        },
         print: currentConfig.print,
         validation: currentConfig.validation,
     };
@@ -292,4 +306,3 @@ function updatePreviewFromInput(url, previewId) {
         preview.src = "";
     }
 }
-
