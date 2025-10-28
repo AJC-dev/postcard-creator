@@ -4,7 +4,7 @@ import fallbackConfig from '../js/config.js';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false } 
 });
 
 // simple deep merge without external deps
