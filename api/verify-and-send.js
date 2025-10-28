@@ -8,7 +8,7 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-async function sendToPrintAPI(postcardData) {
+async function sendToPrintAPI(postcardData, postcardCount) {
     const { sender, recipient, frontImageUrl, backImageUrl } = postcardData;
     const { ZAPPOST_USERNAME, ZAPPOST_PASSWORD, ZAPPOST_CAMPAIGN_ID } = process.env;
 
@@ -20,7 +20,7 @@ async function sendToPrintAPI(postcardData) {
     const config = result.rows[0]?.settings;
     const postcardPromoImageUrl = config?.postcardPromo?.imageURL || "";
 
-    const customerId = `${sender.email}${recipient.postcode.replace(/\s/g, '')}`;
+    const customerId = `${sender.email}-${recipient.postcode.replace(/\s/g, '')}-${postcardCount}`;
 
     const apiPayload = {
         campaignId: ZAPPOST_CAMPAIGN_ID,
@@ -90,6 +90,15 @@ export default async function handler(request, response) {
         }
         const { confirmationEmail: confirmationEmailConfig } = config;
         
+        // Get postcard count for this sender in the last 30 days
+        const { limitDays } = config.limits;
+        const cutoffDate = new Date(Date.now() - limitDays * 24 * 60 * 60 * 1000);
+        const countResult = await pool.query(
+            'SELECT COUNT(*) FROM postcard_logs WHERE sender_email = $1 AND sent_at > $2',
+            [sender.email, cutoffDate.toISOString()]
+        );
+        const postcardCount = parseInt(countResult.rows[0].count, 10) + 1;
+        
         await pool.query(
             `INSERT INTO postcard_logs (sender_name, sender_email, recipient_name, recipient_email, recipient_address, front_image_url, back_image_url, sent_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
@@ -98,7 +107,7 @@ export default async function handler(request, response) {
              postcardData.frontImageUrl, postcardData.backImageUrl, new Date().toISOString()]
         );
 
-        await sendToPrintAPI(postcardData);
+        await sendToPrintAPI(postcardData, postcardCount);
 
         let subject = confirmationEmailConfig.subject.replace(/{{senderName}}/g, sender.name).replace(/{{recipientName}}/g, recipient.name);
         let body = confirmationEmailConfig.body.replace(/{{senderName}}/g, sender.name).replace(/{{recipientName}}/g, recipient.name);
