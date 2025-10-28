@@ -31,8 +31,48 @@ export default async function handler(request, response) {
     }
 
     try {
-        const { postcardData } = await parseJSONBody(request);
+        // Parse the request body
+        const body = await parseJSONBody(request);
+        
+        // Validate the request structure
+        if (!body.postcardData) {
+            return response.status(400).json({ 
+                message: 'Bad Request', 
+                details: 'Missing postcardData in request body' 
+            });
+        }
+
+        const { postcardData } = body;
         const { sender, recipient, emailConfig } = postcardData;
+        
+        // Validate required fields
+        if (!sender || !sender.email || !sender.name) {
+            return response.status(400).json({ 
+                message: 'Bad Request', 
+                details: 'Missing or invalid sender information' 
+            });
+        }
+        
+        if (!recipient || !recipient.name) {
+            return response.status(400).json({ 
+                message: 'Bad Request', 
+                details: 'Missing or invalid recipient information' 
+            });
+        }
+        
+        if (!emailConfig || !emailConfig.subject || !emailConfig.body) {
+            return response.status(400).json({ 
+                message: 'Bad Request', 
+                details: 'Missing or invalid email configuration' 
+            });
+        }
+
+        if (!postcardData.frontImageUrlForEmail || !postcardData.backImageUrlWithAddress) {
+            return response.status(400).json({ 
+                message: 'Bad Request', 
+                details: 'Missing postcard image URLs' 
+            });
+        }
         
         // Get configuration using pg Pool
         const configResult = await pool.query('SELECT settings FROM configuration WHERE id = 1');
