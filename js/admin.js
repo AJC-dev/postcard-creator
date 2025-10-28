@@ -284,17 +284,59 @@ function setupImageUploader(uploaderId, targetInputId, previewId) {
     const targetInput = document.getElementById(targetInputId);
     const preview = document.getElementById(previewId);
 
-    uploader.addEventListener('change', (event) => {
+    uploader.addEventListener('change', async (event) => {
         const file = event.target.files[0];
         if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const base64String = e.target.result;
-            preview.src = base64String;
-            targetInput.value = base64String;
-        };
-        reader.readAsDataURL(file);
+        // Special handling for postcard promo - upload to Vercel Blob
+        if (uploaderId === 'postcard-promo-image-uploader') {
+            try {
+                // Show loading state
+                preview.style.opacity = '0.5';
+                targetInput.value = 'Uploading...';
+                targetInput.disabled = true;
+
+                // Create filename with timestamp
+                const timestamp = Date.now();
+                const extension = file.name.split('.').pop();
+                const filename = `postcard-promo-${timestamp}.${extension}`;
+
+                // Upload to Vercel Blob
+                const uploadResponse = await fetch(`/api/upload?filename=${filename}`, {
+                    method: 'POST',
+                    body: file
+                });
+
+                if (!uploadResponse.ok) {
+                    throw new Error('Upload failed');
+                }
+
+                const uploadData = await uploadResponse.json();
+
+                // Update preview and input with the URL
+                preview.src = uploadData.url;
+                targetInput.value = uploadData.url;
+                preview.style.opacity = '1';
+                targetInput.disabled = false;
+
+                alert('Promo image uploaded successfully!');
+            } catch (error) {
+                console.error('Upload error:', error);
+                alert('Failed to upload promo image: ' + error.message);
+                preview.style.opacity = '1';
+                targetInput.value = '';
+                targetInput.disabled = false;
+            }
+        } else {
+            // For other images, use base64 as before
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const base64String = e.target.result;
+                preview.src = base64String;
+                targetInput.value = base64String;
+            };
+            reader.readAsDataURL(file);
+        }
     });
 }
 
