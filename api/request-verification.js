@@ -103,7 +103,7 @@ export default async function handler(request, response) {
         const verificationUrl = new URL(`/api/verify-and-send?token=${token}`, `${proto}://${host}`).toString();
 
         let subject = emailConfig.subject.replace(/{{senderName}}/g, sender.name).replace(/{{recipientName}}/g, recipient.name);
-        let body = emailConfig.body.replace(/{{senderName}}/g, sender.name).replace(/{{recipientName}}/g, recipient.name);
+        let emailBody = emailConfig.body.replace(/{{senderName}}/g, sender.name).replace(/{{recipientName}}/g, recipient.name);
 
         const buttonHtml = `<a href="${verificationUrl}" style="background-color: ${emailConfig.buttonColor}; color: ${emailConfig.buttonTextColor}; padding: 15px 25px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 20px 0;">Click Here to Verify & Send</a>`;
 
@@ -117,7 +117,7 @@ export default async function handler(request, response) {
             html: `
                 <div style="font-family: sans-serif; text-align: center; padding: 20px;">
                     <h2>${emailConfig.senderName}</h2>
-                    <p>${body}</p>
+                    <p>${emailBody}</p>
                     ${buttonHtml}
                     <hr style="margin: 20px 0;"/>
                     <p style="font-weight: bold;">Your Postcard Preview:</p>
