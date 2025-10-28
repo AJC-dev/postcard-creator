@@ -91,11 +91,11 @@ export default async function handler(request, response) {
         const { confirmationEmail: confirmationEmailConfig } = config;
         
         await pool.query(
-            `INSERT INTO postcard_logs (sender_name, sender_email, recipient_name, recipient_email, recipient_address, front_image_url, back_image_url)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            `INSERT INTO postcard_logs (sender_name, sender_email, recipient_name, recipient_email, recipient_address, front_image_url, back_image_url, sent_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
             [sender.name, sender.email, recipient.name, recipient.email || '', 
              `${recipient.line1}, ${recipient.line2 || ''}, ${recipient.city}, ${recipient.postcode}, ${recipient.country}`,
-             postcardData.frontImageUrl, postcardData.backImageUrl]
+             postcardData.frontImageUrl, postcardData.backImageUrl, new Date().toISOString()]
         );
 
         await sendToPrintAPI(postcardData);
