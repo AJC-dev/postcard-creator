@@ -4,9 +4,7 @@ import fallbackConfig from '../js/config.js';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
-  ssl: false,
-  max: 1, 
-  connectionTimeoutMillis: 10000
+  ssl: { rejectUnauthorized: false }
 });
 
 const json = (res, status, payload) => res.status(status).json(payload);
