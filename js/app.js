@@ -203,14 +203,21 @@ function drawCoverImage(ctx, img, canvasWidth, canvasHeight, offsetX, offsetY, z
 function drawCleanFrontOnContext(ctx, width, height, bleedPx = 0) {
      if (appState.uploadedImage) {
         ctx.save();
-        ctx.translate(bleedPx, bleedPx);
+        
+        // --- FIX 2: Remove black border ---
+        // ctx.translate(bleedPx, bleedPx); // <-- This line was removed
+        
         const effectiveScale = (appState.isPortrait && width > height) ? 
             height / dom.previewCanvas.el.height : 
             width / dom.previewCanvas.el.width;
 
         const scaledOffsetX = appState.imageOffsetX * effectiveScale;
         const scaledOffsetY = appState.imageOffsetY * effectiveScale;
-        drawCoverImage(ctx, appState.uploadedImage, width - (bleedPx * 2), height - (bleedPx * 2), scaledOffsetX, scaledOffsetY, appState.imageZoom);
+        
+        // Draw on full width/height to fill the bleed area
+        drawCoverImage(ctx, appState.uploadedImage, width, height, scaledOffsetX, scaledOffsetY, appState.imageZoom);
+        // --- END FIX 2 ---
+
         ctx.restore();
     }
     if (appState.frontText.text) {
@@ -223,6 +230,8 @@ function drawCleanFrontOnContext(ctx, width, height, bleedPx = 0) {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
+        // --- FIX 2 (Correction): Apply bleed offset to text as well ---
+        // The text must be offset by the bleed, as it's no longer part of the global translate
         const textX = (x * effectiveScale) + bleedPx;
         const textY = (y * effectiveScale) + bleedPx;
 
@@ -245,34 +254,15 @@ function drawPreviewCanvas() {
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
     ctx.lineWidth = 1;
     ctx.setLineDash([5, 5]);
-    
-    // Calculate the scale factor between canvas and A5 dimensions
-    const canvasAspect = canvas.width / canvas.height;
-    const a5Aspect = postcardConfig.print.a5WidthMM / postcardConfig.print.a5HeightMM;
-    
-    let scaleFactor;
-    if (canvasAspect > a5Aspect) {
-        // Canvas is wider than A5, scale by height
-        scaleFactor = canvas.height / postcardConfig.print.a5HeightMM;
-    } else {
-        // Canvas is taller than A5, scale by width
-        scaleFactor = canvas.width / postcardConfig.print.a5WidthMM;
-    }
-    
-    // Convert 3mm to pixels using the correct scale factor
-    const additionalSafetyMM = 3;
-    const additionalSafetyPx = additionalSafetyMM * scaleFactor;
-    
-    // Calculate bleed in pixels
-    const bleedPx = postcardConfig.print.bleedMM * scaleFactor;
-    
-    // Total safety margins (bleed + additional 3mm)
-    const safetyMarginX = bleedPx + additionalSafetyPx;
-    const safetyMarginY = bleedPx + additionalSafetyPx;
+
+    // --- FIX 1: Set safety margin to 3mm inside core ---
+    const safetyMarginMM = 3; // 3mm safety margin
+    const safetyMarginX = (safetyMarginMM / postcardConfig.print.a5WidthMM) * canvas.width;
+    const safetyMarginY = (safetyMarginMM / postcardConfig.print.a5HeightMM) * canvas.height;
+    // --- END FIX 1 ---
     
     ctx.strokeRect(safetyMarginX, safetyMarginY, canvas.width - 2 * safetyMarginX, canvas.height - 2 * safetyMarginY);
     ctx.restore();
-    
     if (appState.frontText.text) {
         if (appState.frontText.x === null) {
             appState.frontText.x = canvas.width / 2;
@@ -287,11 +277,9 @@ function drawPreviewCanvas() {
         ctx.rotate(rotation * Math.PI / 180);
         drawWrappedText(ctx, text, 0, 0, textWidth, size * 1.2, `${size}px ${font}`);
         ctx.restore();
-        
         const metrics = getTextMetrics(ctx);
         if (!metrics) return;
         const handles = getHandlePositions(metrics);
-        
         ctx.save();
         ctx.translate(metrics.x, metrics.y);
         ctx.rotate(appState.frontText.rotation * Math.PI / 180);
@@ -300,7 +288,6 @@ function drawPreviewCanvas() {
         ctx.setLineDash([5, 5]);
         ctx.strokeRect(metrics.box.x, metrics.box.y, metrics.box.width, metrics.box.height);
         ctx.restore();
-        
         ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
         ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
         ctx.lineWidth = 1;
