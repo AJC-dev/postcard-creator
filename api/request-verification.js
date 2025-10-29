@@ -105,9 +105,10 @@ export default async function handler(request, response) {
         let subject = emailConfig.subject.replace(/{{senderName}}/g, sender.name).replace(/{{recipientName}}/g, recipient.name);
         let emailBody = emailConfig.body.replace(/{{senderName}}/g, sender.name).replace(/{{recipientName}}/g, recipient.name);
 
-        // --- FIX: Define button colors from emailConfig ---
-        const buttonColor = emailConfig?.buttonColor || '#007bff'; // Default color
-        const buttonTextColor = emailConfig?.buttonTextColor || '#ffffff'; // Default color
+        // --- FIX: Get button colors from database config ---
+        // Use sendPostcardButton colors for the verification email button
+        const buttonColor = config?.styles?.sendPostcardButtonColor || '#212529';
+        const buttonTextColor = config?.styles?.sendPostcardButtonTextColor || '#FFFFFF';
         
         const buttonHtml = `<a href="${verificationUrl}" style="background-color: ${buttonColor}; color: ${buttonTextColor}; padding: 15px 25px; text-decoration: none; border-radius: 5px; display: inline-block; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-weight: bold;">Click Here to Verify & Send</a>`;
 

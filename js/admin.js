@@ -62,6 +62,7 @@ function setupEventListeners() {
         firstHeader.nextElementSibling.classList.add('open');
     }
 
+    // Setup ALL image uploaders to use Vercel Blob
     setupImageUploader('favicon-uploader', 'faviconURL', 'favicon-preview');
     setupImageUploader('loading-image-uploader', 'loadingImageURL', 'loading-image-preview');
     setupImageUploader('success-favicon-uploader', 'successFaviconURL', 'success-favicon-preview');
@@ -69,7 +70,7 @@ function setupEventListeners() {
     setupImageUploader('confirmation-promo-image-uploader', 'confirmationPromoImageURL', 'confirmation-promo-image-preview');
     setupImageUploader('postcard-promo-image-uploader', 'postcardPromoImageURL', 'postcard-promo-image-preview');
 
-
+    // Update previews when URLs are manually changed
     document.getElementById('faviconURL').addEventListener('input', (e) => updatePreviewFromInput(e.target.value, 'favicon-preview'));
     document.getElementById('loadingImageURL').addEventListener('input', (e) => updatePreviewFromInput(e.target.value, 'loading-image-preview'));
     document.getElementById('successFaviconURL').addEventListener('input', (e) => updatePreviewFromInput(e.target.value, 'success-favicon-preview'));
@@ -77,7 +78,7 @@ function setupEventListeners() {
     document.getElementById('confirmationPromoImageURL').addEventListener('input', (e) => updatePreviewFromInput(e.target.value, 'confirmation-promo-image-preview'));
     document.getElementById('postcardPromoImageURL').addEventListener('input', (e) => updatePreviewFromInput(e.target.value, 'postcard-promo-image-preview'));
 
-
+    // Copy buttons for email variables
     document.querySelectorAll('.copy-btn').forEach(button => {
         button.addEventListener('click', (e) => {
             const textToCopy = e.target.dataset.clipboardText;
@@ -132,7 +133,6 @@ function populateForm(config) {
     updatePreviewFromInput(config.confirmationEmail.promoImageURL, 'confirmation-promo-image-preview');
     document.getElementById('confirmationPromoImageURL').value = config.confirmationEmail.promoImageURL;
 
-
     // Success Page Settings
     document.getElementById('successTitle').value = config.successPage.pageTitle;
     updatePreviewFromInput(config.successPage.faviconURL, 'success-favicon-preview');
@@ -184,7 +184,6 @@ async function handleFormSubmit(event) {
         alert('Please fill out all mandatory fields.');
         return;
     }
-
 
     saveButton.textContent = 'Saving...';
     saveButton.disabled = true;
@@ -288,69 +287,57 @@ function setupImageUploader(uploaderId, targetInputId, previewId) {
         const file = event.target.files[0];
         if (!file) return;
 
-        // List of uploaders that should use Vercel Blob (all promo images)
-        const useVercelBlob = [
-            'postcard-promo-image-uploader',
-            'confirmation-promo-image-uploader', 
-            'promo-image-uploader'
-        ].includes(uploaderId);
+        try {
+            // Show loading state
+            preview.style.opacity = '0.5';
+            targetInput.value = 'Uploading...';
+            targetInput.disabled = true;
 
-        if (useVercelBlob) {
-            try {
-                // Show loading state
-                preview.style.opacity = '0.5';
-                targetInput.value = 'Uploading...';
-                targetInput.disabled = true;
+            // Create filename with timestamp
+            const timestamp = Date.now();
+            const extension = file.name.split('.').pop();
+            const prefix = uploaderId.replace('-uploader', '');
+            const filename = `${prefix}-${timestamp}.${extension}`;
 
-                // Create filename with timestamp
-                const timestamp = Date.now();
-                const extension = file.name.split('.').pop();
-                const prefix = uploaderId.replace('-uploader', '');
-                const filename = `${prefix}-${timestamp}.${extension}`;
+            // Upload ALL images to Vercel Blob (not just promos)
+            const uploadResponse = await fetch(`/api/upload?filename=${filename}`, {
+                method: 'POST',
+                body: file
+            });
 
-                // Upload to Vercel Blob
-                const uploadResponse = await fetch(`/api/upload?filename=${filename}`, {
-                    method: 'POST',
-                    body: file
-                });
-
-                if (!uploadResponse.ok) {
-                    throw new Error('Upload failed');
-                }
-
-                const uploadData = await uploadResponse.json();
-
-                // Update preview and input with the URL
-                preview.src = uploadData.url;
-                targetInput.value = uploadData.url;
-                preview.style.opacity = '1';
-                targetInput.disabled = false;
-
-            } catch (error) {
-                console.error('Upload error:', error);
-                alert('Failed to upload image: ' + error.message);
-                preview.style.opacity = '1';
-                targetInput.value = '';
-                targetInput.disabled = false;
+            if (!uploadResponse.ok) {
+                throw new Error('Upload failed');
             }
-        } else {
-            // For favicons and loading images, keep using base64
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const base64String = e.target.result;
-                preview.src = base64String;
-                targetInput.value = base64String;
-            };
-            reader.readAsDataURL(file);
+
+            const uploadData = await uploadResponse.json();
+
+            // Update preview and input with the Blob URL
+            preview.src = uploadData.url;
+            targetInput.value = uploadData.url;
+            preview.style.opacity = '1';
+            targetInput.disabled = false;
+
+        } catch (error) {
+            console.error('Upload error:', error);
+            alert('Failed to upload image: ' + error.message);
+            preview.style.opacity = '1';
+            targetInput.value = '';
+            targetInput.disabled = false;
         }
     });
 }
 
 function updatePreviewFromInput(url, previewId) {
     const preview = document.getElementById(previewId);
-    if (url && (url.startsWith('http') || url.startsWith('data:image'))) {
-        preview.src = url;
-    } else if (!url) {
+    if (url) {
+        // Support both blob URLs and legacy base64 (for backward compatibility)
+        if (url.startsWith('http') || url.startsWith('data:image')) {
+            preview.src = url;
+        } else if (url.endsWith('.ico') || url.endsWith('.png') || url.endsWith('.jpg') || url.endsWith('.gif')) {
+            // Handle relative paths (legacy support)
+            preview.src = url;
+        }
+    } else {
         preview.src = "";
     }
 }

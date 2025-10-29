@@ -81,22 +81,24 @@ export default async function handler(request, response) {
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const { postcardData } = decoded; 
-        const { sender, recipient, emailConfig } = postcardData; // Get emailConfig from postcardData
+        const { sender, recipient } = postcardData;
         
         const proto = request.headers['x-forwarded-proto'] || 'http';
         const host = request.headers['x-forwarded-host'] || request.headers.host;
         const sendAgainUrl = new URL('/?sendAgain=true', `${proto}://${host}`).toString();
         
-        const buttonColor = emailConfig?.buttonColor || '#007bff'; // Default color
-        const buttonTextColor = emailConfig?.buttonTextColor || '#ffffff'; // Default color
-        
-        const sendAgainButtonHtml = `<a href="${sendAgainUrl}" style="background-color: ${buttonColor}; color: ${buttonTextColor}; padding: 15px 25px; text-decoration: none; border-radius: 5px; display: inline-block; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-weight: bold;">Send this postcard to someone else?</a>`;
-
         const configResult = await pool.query('SELECT settings FROM configuration WHERE id = 1');
         const config = configResult.rows[0]?.settings;
         if (!config) {
             throw new Error("Live configuration not found in database.");
         }
+        
+        // Use the successPage button colors for "Send Again" button
+        const buttonColor = config?.successPage?.buttonColor || '#212529';
+        const buttonTextColor = config?.successPage?.buttonTextColor || '#FFFFFF';
+        
+        const sendAgainButtonHtml = `<a href="${sendAgainUrl}" style="background-color: ${buttonColor}; color: ${buttonTextColor}; padding: 15px 25px; text-decoration: none; border-radius: 5px; display: inline-block; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-weight: bold;">Send this postcard to someone else?</a>`;
+
         const { confirmationEmail: confirmationEmailConfig } = config;
         
         // Get postcard count for this sender in the last 30 days
@@ -121,7 +123,7 @@ export default async function handler(request, response) {
         let subject = confirmationEmailConfig.subject.replace(/{{senderName}}/g, sender.name).replace(/{{recipientName}}/g, recipient.name);
         let body = confirmationEmailConfig.body.replace(/{{senderName}}/g, sender.name).replace(/{{recipientName}}/g, recipient.name);
 
-        // --- ENHANCEMENT #3: Robust, Table-Based HTML Email Template ---
+        // --- ENHANCEMENT: Robust, Table-Based HTML Email Template ---
         const emailHtml = `
         <!DOCTYPE html>
         <html lang="en">
@@ -198,18 +200,16 @@ export default async function handler(request, response) {
                     </td>
                 </tr>
                 <!-- 8. PROMO SECTION -->
+                ${confirmationEmailConfig.promoImageURL ? `
                 <tr>
                     <td align="center" style="padding: 0px 30px 20px 30px; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-size: 16px; line-height: 1.5; color: #555555;">
                         <p style="margin: 0 0 10px 0;">${confirmationEmailConfig.promoText}</p>
-
-                        ${confirmationEmailConfig.promoImageURL ? `
                         <a href="${confirmationEmailConfig.promoLinkURL || '#'}" target="_blank">
                             <img src="${confirmationEmailConfig.promoImageURL}" alt="Promo Image" width="300" style="max-width: 100%; width: 300px; margin-top: 10px; border-radius: 8px; display: block; margin-left: auto; margin-right: auto;">
                         </a>
-                        ` : ''}
-
                     </td>
                 </tr>
+                ` : ''}
                 <!-- 9. FOOTER -->
                 <tr>
                     <td align="center" style="padding: 30px 30px; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-size: 12px; line-height: 1.5; color: #888888;">
@@ -225,7 +225,7 @@ export default async function handler(request, response) {
         </body>
         </html>
         `;
-        // --- END ENHANCEMENT #3 ---
+        // --- END ENHANCEMENT ---
 
         const confirmationMsg = {
             to: sender.email,
@@ -248,4 +248,3 @@ export default async function handler(request, response) {
         return response.status(500).send(`<h1>Error</h1><p>Failed to send postcard: ${errorMessage}</p>`);
     }
 }
-
