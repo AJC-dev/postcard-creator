@@ -245,10 +245,23 @@ function drawPreviewCanvas() {
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
     ctx.lineWidth = 1;
     ctx.setLineDash([5, 5]);
-    const safetyMarginX = (postcardConfig.print.bleedMM / postcardConfig.print.a5WidthMM) * canvas.width;
-    const safetyMarginY = (postcardConfig.print.bleedMM / postcardConfig.print.a5HeightMM) * canvas.height;
+    
+    // Calculate bleed margins
+    const bleedMarginX = (postcardConfig.print.bleedMM / postcardConfig.print.a5WidthMM) * canvas.width;
+    const bleedMarginY = (postcardConfig.print.bleedMM / postcardConfig.print.a5HeightMM) * canvas.height;
+    
+    // Add 3mm additional margin inside for text safety zone
+    const additionalSafetyMM = 3;
+    const additionalSafetyX = (additionalSafetyMM / postcardConfig.print.a5WidthMM) * canvas.width;
+    const additionalSafetyY = (additionalSafetyMM / postcardConfig.print.a5HeightMM) * canvas.height;
+    
+    // Total safety margins (bleed + additional 3mm)
+    const safetyMarginX = bleedMarginX + additionalSafetyX;
+    const safetyMarginY = bleedMarginY + additionalSafetyY;
+    
     ctx.strokeRect(safetyMarginX, safetyMarginY, canvas.width - 2 * safetyMarginX, canvas.height - 2 * safetyMarginY);
     ctx.restore();
+    
     if (appState.frontText.text) {
         if (appState.frontText.x === null) {
             appState.frontText.x = canvas.width / 2;
@@ -263,9 +276,11 @@ function drawPreviewCanvas() {
         ctx.rotate(rotation * Math.PI / 180);
         drawWrappedText(ctx, text, 0, 0, textWidth, size * 1.2, `${size}px ${font}`);
         ctx.restore();
+        
         const metrics = getTextMetrics(ctx);
         if (!metrics) return;
         const handles = getHandlePositions(metrics);
+        
         ctx.save();
         ctx.translate(metrics.x, metrics.y);
         ctx.rotate(appState.frontText.rotation * Math.PI / 180);
@@ -274,6 +289,7 @@ function drawPreviewCanvas() {
         ctx.setLineDash([5, 5]);
         ctx.strokeRect(metrics.box.x, metrics.box.y, metrics.box.width, metrics.box.height);
         ctx.restore();
+        
         ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
         ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
         ctx.lineWidth = 1;
