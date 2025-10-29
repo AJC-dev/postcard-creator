@@ -4,18 +4,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     let config;
 
     try {
-        // Check if config was preloaded
-        if (window.__successPageConfig) {
-            config = { successPage: window.__successPageConfig };
+        const response = await fetch('/api/get-config');
+        if (response.ok) {
+            config = await response.json();
         } else {
-            // Fallback: fetch if preload failed
-            const response = await fetch('/api/get-config');
-            if (response.ok) {
-                config = await response.json();
-            } else {
-                console.warn('Could not fetch live config, using fallback.');
-                config = fallbackConfig;
-            }
+            console.warn('Could not fetch live config, using fallback.');
+            config = fallbackConfig;
         }
     } catch (error) {
         console.error('Error fetching live config, using fallback.', error);
@@ -34,15 +28,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function applySuccessPageConfig(successConfig) {
-    // Title and favicon already set by preload, but ensure they're updated
-    if (!document.title || document.title === 'Loading...') {
-        document.title = successConfig.pageTitle;
-    }
-    
-    const favicon = document.getElementById('success-favicon');
-    if (!favicon.href || favicon.href === window.location.href) {
-        favicon.href = successConfig.faviconURL + '?t=' + Date.now();
-    }
+    document.title = successConfig.pageTitle;
+    document.getElementById('success-favicon').href = successConfig.faviconURL;
     
     document.getElementById('success-heading').textContent = successConfig.heading;
     document.getElementById('success-heading').style.color = successConfig.headingColor;
@@ -60,7 +47,7 @@ function applySuccessPageConfig(successConfig) {
     promoLink.href = successConfig.promoLinkURL;
 
     const promoImage = document.getElementById('success-promo-image');
-    // Cache-busting for promo image
-    promoImage.src = successConfig.promoImageURL + '?t=' + Date.now();
+    promoImage.src = successConfig.promoImageURL;
     promoImage.alt = "Promo Image";
 }
+
