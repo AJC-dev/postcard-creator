@@ -5,6 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Loading...</title>
     <link id="success-favicon" rel="icon" type="image/x-icon" href="">
+    
+    <!-- PRELOAD SCRIPT FOR SUCCESS PAGE -->
+    <script>
+        (function() {
+            fetch('/api/get-config')
+                .then(response => response.ok ? response.json() : Promise.reject())
+                .then(config => {
+                    const applySuccessConfig = () => {
+                        if (config.successPage) {
+                            document.title = config.successPage.pageTitle;
+                            const favicon = document.getElementById('success-favicon');
+                            if (favicon) {
+                                favicon.href = config.successPage.faviconURL + '?t=' + Date.now();
+                            }
+                        }
+                    };
+                    
+                    if (document.readyState === 'loading') {
+                        document.addEventListener('DOMContentLoaded', applySuccessConfig);
+                    } else {
+                        applySuccessConfig();
+                    }
+                    
+                    window.__successPageConfig = config.successPage;
+                })
+                .catch(err => console.error('Failed to preload success config:', err));
+        })();
+    </script>
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,7 +43,7 @@
 <body class="bg-slate-50 text-gray-800 flex items-center justify-center min-h-screen p-4">
     <!-- Loading Overlay -->
     <div id="loading-overlay" class="fixed inset-0 bg-slate-50 flex items-center justify-center z-50">
-        <img id="loading-image" src="https://i.gifer.com/ZZ5H.gif" alt="Loading..." class="h-16 w-16">
+        <div class="loader"></div>
     </div>
     
     <!-- Main Content (hidden by default) -->
@@ -36,4 +65,3 @@
     <script src="js/success.js" type="module"></script>
 </body>
 </html>
-

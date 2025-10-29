@@ -5,6 +5,56 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Loading...</title>
     <link id="favicon" rel="icon" type="image/x-icon" href="" />
+    
+    <!-- PRELOAD CONFIGURATION SCRIPT - Loads config immediately -->
+    <script>
+        (function() {
+            // Store config globally for immediate use
+            window.__postcardConfig = null;
+            
+            // Fetch config as early as possible
+            fetch('/api/get-config')
+                .then(response => {
+                    if (!response.ok) throw new Error('Config fetch failed');
+                    return response.json();
+                })
+                .then(config => {
+                    window.__postcardConfig = config;
+                    
+                    // Apply critical config immediately when DOM is ready
+                    const applyImmediateConfig = () => {
+                        const loadingImage = document.getElementById('loading-image');
+                        const favicon = document.getElementById('favicon');
+                        
+                        if (loadingImage && config.content.loadingImageURL) {
+                            // Cache-busting to ensure fresh image load
+                            loadingImage.src = config.content.loadingImageURL + '?t=' + Date.now();
+                            loadingImage.style.display = 'block';
+                        }
+                        
+                        if (favicon && config.content.faviconURL) {
+                            favicon.href = config.content.faviconURL + '?t=' + Date.now();
+                        }
+                        
+                        if (config.content.pageTitle) {
+                            document.title = config.content.pageTitle;
+                        }
+                    };
+                    
+                    // Apply immediately if DOM is ready, otherwise wait
+                    if (document.readyState === 'loading') {
+                        document.addEventListener('DOMContentLoaded', applyImmediateConfig);
+                    } else {
+                        applyImmediateConfig();
+                    }
+                })
+                .catch(error => {
+                    console.error('Failed to preload config:', error);
+                    // Fallback will be handled by main app
+                });
+        })();
+    </script>
+    
     <script src="https://www.google.com/recaptcha/api.js" async defer></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/masonry-layout@4/dist/masonry.pkgd.min.js" async></script>
@@ -15,9 +65,11 @@
 </head>
 <body class="bg-slate-50 text-gray-800 flex flex-col items-center min-h-screen p-4 md:p-8">
 
-    <!-- Loading Overlay -->
+    <!-- Loading Overlay - No hardcoded src -->
     <div id="loading-overlay" class="fixed inset-0 bg-slate-50 flex items-center justify-center z-50">
-        <img id="loading-image" src="https://i.gifer.com/ZZ5H.gif" alt="Loading..." class="h-16 w-16">
+        <img id="loading-image" src="" alt="Loading..." class="h-16 w-16" style="display:none;">
+        <!-- Fallback spinner if image doesn't load -->
+        <div id="loading-spinner" class="loader"></div>
     </div>
 
     <div id="error-banner" class="hidden w-full max-w-2xl mx-auto bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-4" role="alert">
@@ -212,4 +264,3 @@
     <script src="js/app.js" type="module"></script>
 </body>
 </html>
-

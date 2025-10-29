@@ -25,7 +25,6 @@ const appState = {
 };
 
 // --- MAIN INITIALIZATION ---
-// This is the main entry point, ensuring the DOM is ready first.
 document.addEventListener('DOMContentLoaded', () => {
     populateDomReferences();
     loadConfigAndInitialize();
@@ -67,7 +66,14 @@ function populateDomReferences() {
         fontWeightValue: document.getElementById('font-weight-value'),
         messageWarning: document.getElementById('message-warning'),
         messageProfanityWarning: document.getElementById('message-profanity-warning'),
-        addressInputs: { name: document.getElementById('address-name'), line1: document.getElementById('address-line1'), line2: document.getElementById('address-line2'), city: document.getElementById('address-city'), postcode: document.getElementById('address-postcode'), country: document.getElementById('address-country') },
+        addressInputs: { 
+            name: document.getElementById('address-name'), 
+            line1: document.getElementById('address-line1'), 
+            line2: document.getElementById('address-line2'), 
+            city: document.getElementById('address-city'), 
+            postcode: document.getElementById('address-postcode'), 
+            country: document.getElementById('address-country') 
+        },
         finalPreviewFrontContainer: document.getElementById('final-preview-front-container'),
         finalPreviewFront: document.getElementById('final-preview-front'),
         finalPreviewBack: document.getElementById('final-preview-back'),
@@ -82,41 +88,65 @@ function populateDomReferences() {
             recaptchaContainer: document.getElementById('recaptcha-container'),
             errorMessage: document.getElementById('sender-error-message')
         },
-        search: { modal: document.getElementById('search-modal'), showBtn: document.getElementById('find-image-button'), closeBtn: document.getElementById('close-search-modal-btn'), input: document.getElementById('search-input'), searchBtn: document.getElementById('search-btn'), resultsContainer: document.getElementById('search-results'), loader: document.getElementById('search-loader') },
-        zoom: { modal: document.getElementById('zoom-modal'), image: document.getElementById('zoomed-image'), closeBtn: document.getElementById('close-zoom-modal-btn')},
-        ticks: { one: document.getElementById('tick-1'), two: document.getElementById('tick-2'), three: document.getElementById('tick-3'), four: document.getElementById('tick-4') },
+        search: { 
+            modal: document.getElementById('search-modal'), 
+            showBtn: document.getElementById('find-image-button'), 
+            closeBtn: document.getElementById('close-search-modal-btn'), 
+            input: document.getElementById('search-input'), 
+            searchBtn: document.getElementById('search-btn'), 
+            resultsContainer: document.getElementById('search-results'), 
+            loader: document.getElementById('search-loader') 
+        },
+        zoom: { 
+            modal: document.getElementById('zoom-modal'), 
+            image: document.getElementById('zoomed-image'), 
+            closeBtn: document.getElementById('close-zoom-modal-btn')
+        },
+        ticks: { 
+            one: document.getElementById('tick-1'), 
+            two: document.getElementById('tick-2'), 
+            three: document.getElementById('tick-3'), 
+            four: document.getElementById('tick-4') 
+        },
         noThanksTextBtn: document.getElementById('no-thanks-text-btn'),
         errorBanner: document.getElementById('error-banner'),
         errorBannerMessage: document.getElementById('error-banner-message'),
         loadingOverlay: document.getElementById('loading-overlay'),
         loadingImage: document.getElementById('loading-image'),
+        loadingSpinner: document.getElementById('loading-spinner'),
         mainContent: document.getElementById('main-content'),
     };
 }
 
 async function loadConfigAndInitialize() {
     try {
-        const response = await fetch('/api/get-config');
-        if (!response.ok) {
-             throw new Error('Could not fetch config from API');
+        // Check if config was already preloaded
+        if (window.__postcardConfig) {
+            postcardConfig = window.__postcardConfig;
+            console.log('Using preloaded configuration');
+        } else {
+            // Fallback: fetch if preload failed
+            console.log('Preload failed, fetching config now');
+            const response = await fetch('/api/get-config');
+            if (!response.ok) {
+                throw new Error('Could not fetch config from API');
+            }
+            postcardConfig = await response.json();
         }
-        postcardConfig = await response.json();
-        console.error("Nomi1");
     } catch (error) {
         console.error("Could not fetch from DB, using local defaults.", error);
         postcardConfig = fallbackConfig;
         postcardConfig.apiKeys = { recaptchaSiteKey: '', pixabayApiKey: '' }; 
-        // showGlobalError("Could not load application configuration. Using offline defaults.");
-        console.error("Nomi2");
     } finally {
+        // Apply remaining configuration (non-critical items)
         applyConfiguration();
         initializePostcardCreator();
+        
+        // Hide loading overlay and show main content
         dom.loadingOverlay.style.display = 'none';
         dom.mainContent.style.display = 'block';
-        console.error("Nomi3");
     }
 }
-
 
 // --- CORE LOGIC ---
 
@@ -126,9 +156,24 @@ function showGlobalError(message) {
 }
 
 function applyConfiguration() {
-    document.title = postcardConfig.content.pageTitle;
-    dom.favicon.href = postcardConfig.content.faviconURL;
-    dom.loadingImage.src = postcardConfig.content.loadingImageURL;
+    // Title already set by preload script, but ensure it's updated
+    if (!document.title || document.title === 'Loading...') {
+        document.title = postcardConfig.content.pageTitle;
+    }
+    
+    // Favicon already set by preload script, but ensure it's updated
+    if (!dom.favicon.href || dom.favicon.href === window.location.href) {
+        dom.favicon.href = postcardConfig.content.faviconURL + '?t=' + Date.now();
+    }
+    
+    // Loading image already set by preload script
+    // But hide spinner if image loaded successfully
+    if (dom.loadingImage.src && dom.loadingImage.complete) {
+        if (dom.loadingSpinner) {
+            dom.loadingSpinner.style.display = 'none';
+        }
+    }
+
     dom.mainTitle.textContent = postcardConfig.content.mainTitle;
     dom.mainTitle.style.color = postcardConfig.styles.titleColor;
 
@@ -143,7 +188,8 @@ function applyConfiguration() {
     dom.sendPostcardBtn.style.color = postcardConfig.styles.sendPostcardButtonTextColor;
 }
 
-// ... rest of the file is the same as the last version of app.js ...
+// ... [REST OF THE APP.JS CODE REMAINS THE SAME - Include all the other functions] ...
+
 async function checkForProfanityAPI(text, warningElement) {
     if (!text.trim()) {
         warningElement.classList.add('hidden');
@@ -204,9 +250,6 @@ function drawCleanFrontOnContext(ctx, width, height, bleedPx = 0) {
      if (appState.uploadedImage) {
         ctx.save();
         
-        // --- FIX 2: Remove black border ---
-        // ctx.translate(bleedPx, bleedPx); // <-- This line was removed
-        
         const effectiveScale = (appState.isPortrait && width > height) ? 
             height / dom.previewCanvas.el.height : 
             width / dom.previewCanvas.el.width;
@@ -214,9 +257,7 @@ function drawCleanFrontOnContext(ctx, width, height, bleedPx = 0) {
         const scaledOffsetX = appState.imageOffsetX * effectiveScale;
         const scaledOffsetY = appState.imageOffsetY * effectiveScale;
         
-        // Draw on full width/height to fill the bleed area
         drawCoverImage(ctx, appState.uploadedImage, width, height, scaledOffsetX, scaledOffsetY, appState.imageZoom);
-        // --- END FIX 2 ---
 
         ctx.restore();
     }
@@ -230,8 +271,6 @@ function drawCleanFrontOnContext(ctx, width, height, bleedPx = 0) {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        // --- FIX 2 (Correction): Apply bleed offset to text as well ---
-        // The text must be offset by the bleed, as it's no longer part of the global translate
         const textX = (x * effectiveScale) + bleedPx;
         const textY = (y * effectiveScale) + bleedPx;
 
@@ -255,11 +294,9 @@ function drawPreviewCanvas() {
     ctx.lineWidth = 1;
     ctx.setLineDash([5, 5]);
 
-    // --- FIX 1: Set safety margin to 3mm inside core ---
-    const safetyMarginMM = 3; // 3mm safety margin
+    const safetyMarginMM = 3;
     const safetyMarginX = (safetyMarginMM / postcardConfig.print.a5WidthMM) * canvas.width;
     const safetyMarginY = (safetyMarginMM / postcardConfig.print.a5HeightMM) * canvas.height;
-    // --- END FIX 1 ---
     
     ctx.strokeRect(safetyMarginX, safetyMarginY, canvas.width - 2 * safetyMarginX, canvas.height - 2 * safetyMarginY);
     ctx.restore();
@@ -373,7 +410,7 @@ function getHandlePositions(metrics) {
             x: x + (rotateHandleRelX * cos - rotateHandleRelY * sin),
             y: y + (rotateHandleRelY * sin + rotateHandleRelY * cos)
         },
-            width: {
+        width: {
             x: x + (widthHandleRelX * cos - widthHandleRelY * sin),
             y: y + (widthHandleRelY * sin + widthHandleRelY * cos)
         }
@@ -408,8 +445,8 @@ function toggleAccordion(header, forceOpen = null) {
     }
     const wasOpened = content.classList.contains('open');
     if (wasOpened) {
-            if (header.id.startsWith('accordion-header-5')) debouncedUpdateAllPreviews();
-            if (header.id.startsWith('accordion-header-3') && dom.textInput.value === '') {
+        if (header.id.startsWith('accordion-header-5')) debouncedUpdateAllPreviews();
+        if (header.id.startsWith('accordion-header-3') && dom.textInput.value === '') {
             typePlaceholder(dom.textInput, "Write your message or copy and paste here..");
         }
     }
@@ -512,7 +549,10 @@ function resetImagePreviews() {
     dom.imagePlaceholder.classList.remove('hidden');
     dom.imageControls.classList.add('hidden');
     dom.ticks.one.classList.add('hidden');
-    if (dom.finalPreviewFront.src) { URL.revokeObjectURL(dom.finalPreviewFront.src); dom.finalPreviewFront.src = ''; }
+    if (dom.finalPreviewFront.src) { 
+        URL.revokeObjectURL(dom.finalPreviewFront.src); 
+        dom.finalPreviewFront.src = ''; 
+    }
     updatePostcardLayout();
     debouncedUpdateAllPreviews();
 }
@@ -571,12 +611,10 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
     } else {
         const coreWidthPx = Math.round((a5WidthMM / MM_TO_INCH) * dpi);
         const coreHeightPx = Math.round((a5HeightMM / MM_TO_INCH) * dpi);
-        // Always use landscape dimensions for print
         finalWidthPx = coreWidthPx + (bleedPxForPrint * 2);
         finalHeightPx = coreHeightPx + (bleedPxForPrint * 2);
     }
     
-    // --- FRONT CANVAS ---
     const frontCanvas = document.createElement('canvas');
     frontCanvas.width = finalWidthPx;
     frontCanvas.height = finalHeightPx;
@@ -584,18 +622,15 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
     
     if (appState.uploadedImage) {
         if (appState.isPortrait) {
-            // Portrait images: rotate 90 degrees to landscape orientation
             frontCtx.save();
             frontCtx.translate(finalWidthPx / 2, finalHeightPx / 2);
             frontCtx.rotate(90 * Math.PI / 180);
             frontCtx.translate(-finalHeightPx / 2, -finalWidthPx / 2);
             
-            // Draw with swapped dimensions due to rotation
             drawCleanFrontOnContext(frontCtx, finalHeightPx, finalWidthPx, forEmail ? 0 : bleedPxForPrint);
             
             frontCtx.restore();
         } else {
-            // Landscape images: draw normally without rotation
             drawCleanFrontOnContext(frontCtx, finalWidthPx, finalHeightPx, bleedPxForPrint);
         }
     } else {
@@ -603,7 +638,6 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
         frontCtx.fillRect(0, 0, finalWidthPx, finalHeightPx);
     }
 
-    // --- BACK CANVAS ---
     const backCanvas = document.createElement('canvas');
     const mainContentWidthPx = Math.round((a5WidthMM / MM_TO_INCH) * dpi);
     const mainContentHeightPx = Math.round((a5HeightMM / MM_TO_INCH) * dpi);
@@ -657,13 +691,18 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
         messageY += lineHeight;
     });
     
-    // ONLY add address if includeAddressOnBack is true
     if (includeAddressOnBack) {
         const hiResAddressFontSize = 12 * (mainContentWidthPx / 504) * 1.2;
         backCtx.fillStyle = '#333';
         backCtx.font = `400 ${hiResAddressFontSize}px Inter`;
         backCtx.textAlign = 'left';
-        const addressLines = [dom.addressInputs.name.value, dom.addressInputs.line1.value, dom.addressInputs.line2.value, dom.addressInputs.city.value, dom.addressInputs.postcode.value].filter(Boolean);
+        const addressLines = [
+            dom.addressInputs.name.value, 
+            dom.addressInputs.line1.value, 
+            dom.addressInputs.line2.value, 
+            dom.addressInputs.city.value, 
+            dom.addressInputs.postcode.value
+        ].filter(Boolean);
         const addressBlockHeight = addressLines.length * hiResAddressFontSize * 1.4;
         const addressX = dividerX + 20;
         let addressY = (mainContentHeightPx / 2) - (addressBlockHeight / 2);
@@ -676,11 +715,9 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
     return { frontCanvas, backCanvas };
 }
 
-
 async function updateFinalPreviews() {
     const { frontCanvas, backCanvas } = await generatePostcardImages({ forEmail: true, includeAddressOnBack: true });
     
-    // Adjust preview container aspect ratio based on image orientation
     const frontPreviewContainer = dom.finalPreviewFrontContainer;
     if (appState.isPortrait) {
         frontPreviewContainer.classList.remove('aspect-[210/148]');
@@ -758,7 +795,12 @@ async function handleImageSearch() {
 }
 
 async function handleSendPostcard() {
-    const requiredAddressFields = [dom.addressInputs.name, dom.addressInputs.line1, dom.addressInputs.city, dom.addressInputs.postcode];
+    const requiredAddressFields = [
+        dom.addressInputs.name, 
+        dom.addressInputs.line1, 
+        dom.addressInputs.city, 
+        dom.addressInputs.postcode
+    ];
     const allValid = requiredAddressFields.every(input => input.value.trim() !== '');
     if (!allValid) {
         alert('Please fill in all required recipient address fields before sending.');
@@ -809,7 +851,6 @@ async function handleFinalSend() {
     try {
         const { frontCanvas: frontCanvasForPrint, backCanvas: backCanvasForPrintNoAddress } = await generatePostcardImages({ forEmail: false, includeAddressOnBack: false });
         
-        // --- START: Create LOW-RESOLUTION versions for email ---
         const createLowResCanvas = (sourceCanvas, maxWidth = 400) => {
             const scale = maxWidth / sourceCanvas.width;
             const newWidth = sourceCanvas.width * scale;
@@ -825,8 +866,6 @@ async function handleFinalSend() {
         const { frontCanvas: highResEmailFrontCanvas, backCanvas: highResEmailBackCanvas } = await generatePostcardImages({ forEmail: true, includeAddressOnBack: true });
         const lowResFrontCanvasForEmail = createLowResCanvas(highResEmailFrontCanvas);
         const lowResBackCanvasForEmail = createLowResCanvas(highResEmailBackCanvas);
-        // --- END: Create LOW-RESOLUTION versions for email ---
-
 
         const frontBlobForPrint = await new Promise(resolve => frontCanvasForPrint.toBlob(resolve, 'image/jpeg', 0.9));
         const frontBlobForEmail = await new Promise(resolve => lowResFrontCanvasForEmail.toBlob(resolve, 'image/jpeg', 0.8));
@@ -923,11 +962,10 @@ function debounce(func, delay) {
 const debouncedUpdateAllPreviews = debounce(updateFinalPreviews, 300);
 const debouncedProfanityCheck = debounce(checkForProfanityAPI, 500);
 
-
 function initializePostcardCreator() {
     
     if (!postcardConfig.apiKeys || !postcardConfig.apiKeys.recaptchaSiteKey) {
-    console.warn("ReCAPTCHA key not configured - form validation may be limited");
+        console.warn("ReCAPTCHA key not configured - form validation may be limited");
         dom.findImageButton.disabled = true;
         dom.sendPostcardBtn.disabled = true;
         return;
@@ -993,10 +1031,10 @@ function initializePostcardCreator() {
                 appState.frontText.color = dom.frontText.colorPicker.value;
                 if(dom.frontText.input.value.trim() !== '') {
                     dom.ticks.two.classList.remove('hidden');
-                        dom.noThanksTextBtn.classList.add('opacity-0', 'pointer-events-none');
+                    dom.noThanksTextBtn.classList.add('opacity-0', 'pointer-events-none');
                 } else {
                     dom.ticks.two.classList.add('hidden');
-                        dom.noThanksTextBtn.classList.remove('opacity-0', 'pointer-events-none');
+                    dom.noThanksTextBtn.classList.remove('opacity-0', 'pointer-events-none');
                 }
                 if (wasEmpty && appState.frontText.text && dom.previewCanvas.el.width > 0) {
                     appState.frontText.x = dom.previewCanvas.el.width / 2;
@@ -1171,11 +1209,21 @@ function initializePostcardCreator() {
     dom.sender.sendBtn.addEventListener('click', handleFinalSend);
     dom.sender.closeBtn.addEventListener('click', () => {
         dom.sender.modal.style.display = 'none';
-        dom.sender.detailsView.style.display = 'flex'; // Use flex for visibility
+        dom.sender.detailsView.style.display = 'flex';
         dom.sender.checkEmailView.style.display = 'none';
     });
-    dom.finalPreviewFront.addEventListener('click', () => { if (dom.finalPreviewFront.src) { dom.zoom.image.src = dom.finalPreviewFront.src; dom.zoom.modal.style.display = 'flex'; } });
-    dom.finalPreviewBack.addEventListener('click', () => { if (dom.finalPreviewBack.src) { dom.zoom.image.src = dom.finalPreviewBack.src; dom.zoom.modal.style.display = 'flex'; } });
+    dom.finalPreviewFront.addEventListener('click', () => { 
+        if (dom.finalPreviewFront.src) { 
+            dom.zoom.image.src = dom.finalPreviewFront.src; 
+            dom.zoom.modal.style.display = 'flex'; 
+        } 
+    });
+    dom.finalPreviewBack.addEventListener('click', () => { 
+        if (dom.finalPreviewBack.src) { 
+            dom.zoom.image.src = dom.finalPreviewBack.src; 
+            dom.zoom.modal.style.display = 'flex'; 
+        } 
+    });
     dom.zoom.closeBtn.addEventListener('click', () => dom.zoom.modal.style.display = 'none');
     toggleAccordion(document.getElementById('accordion-header-5'), true);
     toggleAccordion(document.getElementById('accordion-header-1'), true);
