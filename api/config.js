@@ -29,7 +29,7 @@ export default {
         body: "Hi {{senderName}}, thank you for using our service. Your postcard is on its way.",
         promoText: "Savings Event: Book next year with savings of up to 40% and Free Business Class Flights",
         promoLinkURL: "https://www.sixstarcruises.co.uk/",
-        promoImageURL: "sixstars.png"
+        promoImageURL: "sixstars.png"  // This should be a full URL after upload
     },
     successPage: {
         pageTitle: "Postcard Sent!",
@@ -42,7 +42,10 @@ export default {
         buttonTextColor: "#FFFFFF",
         promoText: "Savings Event: Book next year with savings of up to 40% and Free Business Class Flights",
         promoLinkURL: "https://www.sixstarcruises.co.uk/",
-        promoImageURL: "sixstars.png"
+        promoImageURL: "sixstars.png"  // This should be a full URL after upload
+    },
+    postcardPromo: {
+        imageURL: ""  // This should be a full URL after upload
     },
     limits: {
         postcardLimit: 5,
@@ -60,4 +63,3 @@ export default {
         maxFileSizeMB: 4
     }
 };
-
