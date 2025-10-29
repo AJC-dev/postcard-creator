@@ -541,17 +541,12 @@ async function checkMessageOverflow() {
     }
 }
 
-async function generatePostcardImages({ forEmail = false } = {}) {
+async function generatePostcardImages({ forEmail = false, includeAddressOnBack = true } = {}) {
     await document.fonts.ready;
     const MM_TO_INCH = 25.4;
     const { dpi, a5WidthMM, a5HeightMM, bleedMM } = postcardConfig.print;
     const bleedPxForPrint = forEmail ? 0 : Math.round((bleedMM / MM_TO_INCH) * dpi);
-    let isFinalPortraitForCanvas = appState.isPortrait;
     
-    if (forEmail && appState.isPortrait) {
-        isFinalPortraitForCanvas = false;
-    }
-
     const A5_RATIO = a5WidthMM / a5HeightMM;
     let finalWidthPx, finalHeightPx;
 
@@ -562,15 +557,12 @@ async function generatePostcardImages({ forEmail = false } = {}) {
     } else {
         const coreWidthPx = Math.round((a5WidthMM / MM_TO_INCH) * dpi);
         const coreHeightPx = Math.round((a5HeightMM / MM_TO_INCH) * dpi);
-        if (appState.isPortrait) {
-            finalHeightPx = coreWidthPx + (bleedPxForPrint * 2);
-            finalWidthPx = coreHeightPx + (bleedPxForPrint * 2);
-        } else {
-            finalWidthPx = coreWidthPx + (bleedPxForPrint * 2);
-            finalHeightPx = coreHeightPx + (bleedPxForPrint * 2);
-        }
+        // Always use landscape dimensions for print
+        finalWidthPx = coreWidthPx + (bleedPxForPrint * 2);
+        finalHeightPx = coreHeightPx + (bleedPxForPrint * 2);
     }
     
+    // --- FRONT CANVAS ---
     const frontCanvas = document.createElement('canvas');
     frontCanvas.width = finalWidthPx;
     frontCanvas.height = finalHeightPx;
@@ -578,15 +570,15 @@ async function generatePostcardImages({ forEmail = false } = {}) {
     
     if (appState.uploadedImage) {
         if (forEmail && appState.isPortrait) {
+            // Email preview: rotate portrait to landscape
             frontCtx.save();
             frontCtx.translate(finalWidthPx / 2, finalHeightPx / 2);
             frontCtx.rotate(90 * Math.PI / 180);
             frontCtx.translate(-finalHeightPx / 2, -finalWidthPx / 2);
-            
             drawCleanFrontOnContext(frontCtx, finalHeightPx, finalWidthPx, 0);
-
             frontCtx.restore();
         } else {
+            // Print API or landscape: draw normally
             drawCleanFrontOnContext(frontCtx, finalWidthPx, finalHeightPx, bleedPxForPrint);
         }
     } else {
@@ -594,7 +586,7 @@ async function generatePostcardImages({ forEmail = false } = {}) {
         frontCtx.fillRect(0, 0, finalWidthPx, finalHeightPx);
     }
 
-    // --- BACK CANVAS (Same for both preview and print) ---
+    // --- BACK CANVAS ---
     const backCanvas = document.createElement('canvas');
     const mainContentWidthPx = Math.round((a5WidthMM / MM_TO_INCH) * dpi);
     const mainContentHeightPx = Math.round((a5HeightMM / MM_TO_INCH) * dpi);
@@ -615,6 +607,7 @@ async function generatePostcardImages({ forEmail = false } = {}) {
     backCtx.setLineDash([15, 15]);
     backCtx.strokeRect(mainContentWidthPx - 300, 50, 250, 250);
     backCtx.setLineDash([]);
+    
     const fontSize = dom.fontSizeSlider.value;
     const fontWeight = dom.fontWeightSlider.value;
     const hiResFontSize = fontSize * (mainContentWidthPx / 504) * 1.2;
@@ -646,18 +639,23 @@ async function generatePostcardImages({ forEmail = false } = {}) {
         backCtx.fillText(currentLine, messageX, messageY);
         messageY += lineHeight;
     });
-    const hiResAddressFontSize = 12 * (mainContentWidthPx / 504) * 1.2;
-    backCtx.fillStyle = '#333';
-    backCtx.font = `400 ${hiResAddressFontSize}px Inter`;
-    backCtx.textAlign = 'left';
-    const addressLines = [dom.addressInputs.name.value, dom.addressInputs.line1.value, dom.addressInputs.line2.value, dom.addressInputs.city.value, dom.addressInputs.postcode.value].filter(Boolean);
-    const addressBlockHeight = addressLines.length * hiResAddressFontSize * 1.4;
-    const addressX = dividerX + 20;
-    let addressY = (mainContentHeightPx / 2) - (addressBlockHeight / 2);
-    addressLines.forEach(line => {
-        backCtx.fillText(line, addressX, addressY);
-        addressY += hiResAddressFontSize * 1.4;
-    });
+    
+    // ONLY add address if includeAddressOnBack is true
+    if (includeAddressOnBack) {
+        const hiResAddressFontSize = 12 * (mainContentWidthPx / 504) * 1.2;
+        backCtx.fillStyle = '#333';
+        backCtx.font = `400 ${hiResAddressFontSize}px Inter`;
+        backCtx.textAlign = 'left';
+        const addressLines = [dom.addressInputs.name.value, dom.addressInputs.line1.value, dom.addressInputs.line2.value, dom.addressInputs.city.value, dom.addressInputs.postcode.value].filter(Boolean);
+        const addressBlockHeight = addressLines.length * hiResAddressFontSize * 1.4;
+        const addressX = dividerX + 20;
+        let addressY = (mainContentHeightPx / 2) - (addressBlockHeight / 2);
+        addressLines.forEach(line => {
+            backCtx.fillText(line, addressX, addressY);
+            addressY += hiResAddressFontSize * 1.4;
+        });
+    }
+    
     return { frontCanvas, backCanvas };
 }
 
@@ -780,7 +778,7 @@ async function handleFinalSend() {
     dom.sender.sendBtn.disabled = true;
     dom.sender.errorMessage.classList.add('hidden');
     try {
-        const { frontCanvas: frontCanvasForPrint, backCanvas: backCanvasForPrint } = await generatePostcardImages({ forEmail: false, includeAddressOnImage: false });
+        const { frontCanvas: frontCanvasForPrint, backCanvas: backCanvasForPrintNoAddress } = await generatePostcardImages({ forEmail: false, includeAddressOnBack: false });
         
         // --- START: Create LOW-RESOLUTION versions for email ---
         const createLowResCanvas = (sourceCanvas, maxWidth = 400) => {
@@ -795,7 +793,7 @@ async function handleFinalSend() {
             return lowResCanvas;
         };
 
-        const { frontCanvas: highResEmailFrontCanvas, backCanvas: highResEmailBackCanvas } = await generatePostcardImages({ forEmail: true, includeAddressOnImage: true });
+        const { frontCanvas: highResEmailFrontCanvas, backCanvas: highResEmailBackCanvas } = await generatePostcardImages({ forEmail: true, includeAddressOnBack: true });
         const lowResFrontCanvasForEmail = createLowResCanvas(highResEmailFrontCanvas);
         const lowResBackCanvasForEmail = createLowResCanvas(highResEmailBackCanvas);
         // --- END: Create LOW-RESOLUTION versions for email ---
@@ -803,7 +801,7 @@ async function handleFinalSend() {
 
         const frontBlobForPrint = await new Promise(resolve => frontCanvasForPrint.toBlob(resolve, 'image/jpeg', 0.9));
         const frontBlobForEmail = await new Promise(resolve => lowResFrontCanvasForEmail.toBlob(resolve, 'image/jpeg', 0.8));
-        const backBlobForPrint = await new Promise(resolve => backCanvasForPrint.toBlob(resolve, 'image/jpeg', 0.9));
+        const backBlobForPrint = await new Promise(resolve => backCanvasForPrintNoAddress.toBlob(resolve, 'image/jpeg', 0.9));
         const backBlobForEmail = await new Promise(resolve => lowResBackCanvasForEmail.toBlob(resolve, 'image/jpeg', 0.8));
         
         const sanitizedEmail = senderEmail.replace(/[^a-z0-9]/gi, '-');
