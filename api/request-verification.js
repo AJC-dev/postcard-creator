@@ -105,7 +105,110 @@ export default async function handler(request, response) {
         let subject = emailConfig.subject.replace(/{{senderName}}/g, sender.name).replace(/{{recipientName}}/g, recipient.name);
         let emailBody = emailConfig.body.replace(/{{senderName}}/g, sender.name).replace(/{{recipientName}}/g, recipient.name);
 
-        const buttonHtml = `<a href="${verificationUrl}" style="background-color: ${emailConfig.buttonColor}; color: ${emailConfig.buttonTextColor}; padding: 15px 25px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 20px 0;">Click Here to Verify & Send</a>`;
+        // --- FIX: Define button colors from emailConfig ---
+        const buttonColor = emailConfig?.buttonColor || '#007bff'; // Default color
+        const buttonTextColor = emailConfig?.buttonTextColor || '#ffffff'; // Default color
+        
+        const buttonHtml = `<a href="${verificationUrl}" style="background-color: ${buttonColor}; color: ${buttonTextColor}; padding: 15px 25px; text-decoration: none; border-radius: 5px; display: inline-block; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-weight: bold;">Click Here to Verify & Send</a>`;
+
+        // --- ENHANCEMENT: Use Robust, Table-Based HTML Email Template ---
+        const emailHtml = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>${subject}</title>
+            <style>
+                body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+                table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+                img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+                table { border-collapse: collapse !important; }
+                body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; }
+            </style>
+        </head>
+        <body style="background-color: #f4f4f4; margin: 0 !important; padding: 0 !important;">
+            <!--[if mso]>
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="600" align="center" style="width:600px;">
+            <tr>
+            <td>
+            <![endif]-->
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+                <!-- 1. HEADER -->
+                <tr>
+                    <td align="center" style="padding: 40px 20px 20px 20px; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;">
+                        <h2 style="font-size: 24px; font-weight: bold; color: #333333; margin: 0;">${emailConfig.senderName}</h2>
+                    </td>
+                </tr>
+                <!-- 2. BODY TEXT -->
+                <tr>
+                    <td align="center" style="padding: 0px 30px 20px 30px; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-size: 16px; line-height: 1.5; color: #555555;">
+                        <p style="margin: 0;">${emailBody}</p>
+                    </td>
+                </tr>
+                <!-- 3. VERIFICATION BUTTON (Top) -->
+                <tr>
+                    <td align="center" style="padding: 0px 30px 20px 30px;">
+                        ${buttonHtml}
+                    </td>
+                </tr>
+                <!-- 4. DIVIDER -->
+                <tr>
+                    <td align="center" style="padding: 20px 30px;">
+                        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                            <tr>
+                                <td style="border-top: 1px solid #eeeeee;">&nbsp;</td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <!-- 5. POSTCARD PREVIEW (FRONT) -->
+                <tr>
+                    <td align="center" style="padding: 20px 30px 10px 30px;">
+                        <p style="font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-size: 16px; font-weight: bold; color: #333333; margin: 0 0 10px 0;">Your Postcard Preview:</p>
+                        <p style="font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-size: 14px; color: #555555; margin: 0 0 5px 0;">Front:</p>
+                        <img src="${postcardData.frontImageUrlForEmail}" alt="Postcard Front" width="400" style="max-width: 100%; width: 400px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); display: block; margin-left: auto; margin-right: auto;"/>
+                    </td>
+                </tr>
+                <!-- 6. POSTCARD PREVIEW (BACK) -->
+                <tr>
+                    <td align="center" style="padding: 10px 30px 20px 30px;">
+                        <p style="font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-size: 14px; color: #555555; margin: 0 0 5px 0;">Back:</p>
+                        <img src="${postcardData.backImageUrlWithAddress}" alt="Postcard Back" width="400" style="max-width: 100%; width: 400px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); display: block; margin-left: auto; margin-right: auto;"/>
+                    </td>
+                </tr>
+                <!-- 7. DIVIDER -->
+                <tr>
+                    <td align="center" style="padding: 20px 30px;">
+                        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                            <tr>
+                                <td style="border-top: 1px solid #eeeeee;">&nbsp;</td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <!-- 8. VERIFICATION BUTTON (Bottom) -->
+                <tr>
+                    <td align="center" style="padding: 0px 30px 20px 30px;">
+                        ${buttonHtml}
+                    </td>
+                </tr>
+                <!-- 9. FOOTER -->
+                <tr>
+                    <td align="center" style="padding: 30px 30px; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-size: 12px; line-height: 1.5; color: #888888;">
+                        <p style="margin: 0;">You received this email to verify your request to send a postcard.</p>
+                    </td>
+                </tr>
+            </table>
+            <!--[if mso]>
+            </td>
+            </tr>
+            </table>
+            <![endif]-->
+        </body>
+        </html>
+        `;
+        // --- END ENHANCEMENT ---
 
         const msg = {
             to: sender.email,
@@ -114,21 +217,7 @@ export default async function handler(request, response) {
                 name: emailConfig.senderName 
             },
             subject: subject,
-            html: `
-                <div style="font-family: sans-serif; text-align: center; padding: 20px;">
-                    <h2>${emailConfig.senderName}</h2>
-                    <p>${emailBody}</p>
-                    ${buttonHtml}
-                    <hr style="margin: 20px 0;"/>
-                    <p style="font-weight: bold;">Your Postcard Preview:</p>
-                    <p>Front:</p>
-                    <img src="${postcardData.frontImageUrlForEmail}" alt="Postcard Front" style="max-width: 100%; width: 400px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);"/>
-                    <p style="margin-top: 20px;">Back:</p>
-                    <img src="${postcardData.backImageUrlWithAddress}" alt="Postcard Back" style="max-width: 100%; width: 400px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);"/>
-                    <hr style="margin: 20px 0;"/>
-                    ${buttonHtml}
-                </div>
-            `,
+            html: emailHtml,
         };
 
         await sgMail.send(msg);
