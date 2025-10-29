@@ -246,18 +246,29 @@ function drawPreviewCanvas() {
     ctx.lineWidth = 1;
     ctx.setLineDash([5, 5]);
     
-    // Calculate bleed margins
-    const bleedMarginX = (postcardConfig.print.bleedMM / postcardConfig.print.a5WidthMM) * canvas.width;
-    const bleedMarginY = (postcardConfig.print.bleedMM / postcardConfig.print.a5HeightMM) * canvas.height;
+    // Calculate the scale factor between canvas and A5 dimensions
+    const canvasAspect = canvas.width / canvas.height;
+    const a5Aspect = postcardConfig.print.a5WidthMM / postcardConfig.print.a5HeightMM;
     
-    // Add 3mm additional margin inside for text safety zone
+    let scaleFactor;
+    if (canvasAspect > a5Aspect) {
+        // Canvas is wider than A5, scale by height
+        scaleFactor = canvas.height / postcardConfig.print.a5HeightMM;
+    } else {
+        // Canvas is taller than A5, scale by width
+        scaleFactor = canvas.width / postcardConfig.print.a5WidthMM;
+    }
+    
+    // Convert 3mm to pixels using the correct scale factor
     const additionalSafetyMM = 3;
-    const additionalSafetyX = (additionalSafetyMM / postcardConfig.print.a5WidthMM) * canvas.width;
-    const additionalSafetyY = (additionalSafetyMM / postcardConfig.print.a5HeightMM) * canvas.height;
+    const additionalSafetyPx = additionalSafetyMM * scaleFactor;
+    
+    // Calculate bleed in pixels
+    const bleedPx = postcardConfig.print.bleedMM * scaleFactor;
     
     // Total safety margins (bleed + additional 3mm)
-    const safetyMarginX = bleedMarginX + additionalSafetyX;
-    const safetyMarginY = bleedMarginY + additionalSafetyY;
+    const safetyMarginX = bleedPx + additionalSafetyPx;
+    const safetyMarginY = bleedPx + additionalSafetyPx;
     
     ctx.strokeRect(safetyMarginX, safetyMarginY, canvas.width - 2 * safetyMarginX, canvas.height - 2 * safetyMarginY);
     ctx.restore();
