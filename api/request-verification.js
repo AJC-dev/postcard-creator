@@ -105,7 +105,7 @@ export default async function handler(request, response) {
         let subject = emailConfig.subject.replace(/{{senderName}}/g, sender.name).replace(/{{recipientName}}/g, recipient.name);
         let emailBody = emailConfig.body.replace(/{{senderName}}/g, sender.name).replace(/{{recipientName}}/g, recipient.name);
 
-        const buttonHtml = `<a href="${verificationUrl}" style="background-color: ${emailConfig.buttonColor}; color: ${emailConfig.buttonTextColor}; padding: 15px 25px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 20px 0;">Click Here to Verify & Send</a>`;
+        const buttonHtml = `<a href="${verificationUrl}" style="background-color: ${buttonColor}; color: ${buttonTextColor}; padding: 15px 25px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 20px 0;">Click Here to Verify & Send</a>`;
 
         const msg = {
             to: sender.email,
