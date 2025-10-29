@@ -569,16 +569,19 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
     const frontCtx = frontCanvas.getContext('2d');
     
     if (appState.uploadedImage) {
-        if (forEmail && appState.isPortrait) {
-            // Email preview: rotate portrait to landscape
+        if (appState.isPortrait) {
+            // Portrait images: rotate 90 degrees to landscape orientation
             frontCtx.save();
             frontCtx.translate(finalWidthPx / 2, finalHeightPx / 2);
             frontCtx.rotate(90 * Math.PI / 180);
             frontCtx.translate(-finalHeightPx / 2, -finalWidthPx / 2);
-            drawCleanFrontOnContext(frontCtx, finalHeightPx, finalWidthPx, 0);
+            
+            // Draw with swapped dimensions due to rotation
+            drawCleanFrontOnContext(frontCtx, finalHeightPx, finalWidthPx, forEmail ? 0 : bleedPxForPrint);
+            
             frontCtx.restore();
         } else {
-            // Print API or landscape: draw normally
+            // Landscape images: draw normally without rotation
             drawCleanFrontOnContext(frontCtx, finalWidthPx, finalHeightPx, bleedPxForPrint);
         }
     } else {
@@ -661,11 +664,23 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
 
 
 async function updateFinalPreviews() {
-    const { frontCanvas, backCanvas } = await generatePostcardImages({ forEmail: true });
+    const { frontCanvas, backCanvas } = await generatePostcardImages({ forEmail: true, includeAddressOnBack: true });
+    
+    // Adjust preview container aspect ratio based on image orientation
+    const frontPreviewContainer = dom.finalPreviewFrontContainer;
+    if (appState.isPortrait) {
+        frontPreviewContainer.classList.remove('aspect-[210/148]');
+        frontPreviewContainer.classList.add('aspect-[148/210]');
+    } else {
+        frontPreviewContainer.classList.remove('aspect-[148/210]');
+        frontPreviewContainer.classList.add('aspect-[210/148]');
+    }
+    
     frontCanvas.toBlob(blob => {
         if (dom.finalPreviewFront.src) URL.revokeObjectURL(dom.finalPreviewFront.src);
         dom.finalPreviewFront.src = URL.createObjectURL(blob);
     });
+    
     backCanvas.toBlob(blob => {
         if (dom.finalPreviewBack.src) URL.revokeObjectURL(dom.finalPreviewBack.src);
         dom.finalPreviewBack.src = URL.createObjectURL(blob);
