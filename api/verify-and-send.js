@@ -80,9 +80,18 @@ export default async function handler(request, response) {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const { postcardData } = decoded;
-        const { sender, recipient } = postcardData;
+        const { postcardData } = decoded; 
+        const { sender, recipient, emailConfig } = postcardData; // Get emailConfig from postcardData
         
+        const proto = request.headers['x-forwarded-proto'] || 'http';
+        const host = request.headers['x-forwarded-host'] || request.headers.host;
+        const sendAgainUrl = new URL('/?sendAgain=true', `${proto}://${host}`).toString();
+        
+        const buttonColor = emailConfig?.buttonColor || '#007bff'; // Default color
+        const buttonTextColor = emailConfig?.buttonTextColor || '#ffffff'; // Default color
+        
+        const sendAgainButtonHtml = `<a href="${sendAgainUrl}" style="background-color: ${buttonColor}; color: ${buttonTextColor}; padding: 15px 25px; text-decoration: none; border-radius: 5px; display: inline-block; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-weight: bold;">Send this postcard to someone else?</a>`;
+
         const configResult = await pool.query('SELECT settings FROM configuration WHERE id = 1');
         const config = configResult.rows[0]?.settings;
         if (!config) {
@@ -112,21 +121,122 @@ export default async function handler(request, response) {
         let subject = confirmationEmailConfig.subject.replace(/{{senderName}}/g, sender.name).replace(/{{recipientName}}/g, recipient.name);
         let body = confirmationEmailConfig.body.replace(/{{senderName}}/g, sender.name).replace(/{{recipientName}}/g, recipient.name);
 
+        // --- ENHANCEMENT #3: Robust, Table-Based HTML Email Template ---
+        const emailHtml = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>${subject}</title>
+            <style>
+                body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+                table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+                img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+                table { border-collapse: collapse !important; }
+                body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; }
+            </style>
+        </head>
+        <body style="background-color: #f4f4f4; margin: 0 !important; padding: 0 !important;">
+            <!--[if mso]>
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="600" align="center" style="width:600px;">
+            <tr>
+            <td>
+            <![endif]-->
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+                <!-- 1. HEADER -->
+                <tr>
+                    <td align="center" style="padding: 40px 20px 20px 20px; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;">
+                        <h2 style="font-size: 24px; font-weight: bold; color: #333333; margin: 0;">${confirmationEmailConfig.senderName}</h2>
+                    </td>
+                </tr>
+                <!-- 2. BODY TEXT -->
+                <tr>
+                    <td align="center" style="padding: 0px 30px 20px 30px; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-size: 16px; line-height: 1.5; color: #555555;">
+                        <p style="margin: 0;">${body}</p>
+                    </td>
+                </tr>
+                <!-- 3. POSTCARD PREVIEW (FRONT) -->
+                <tr>
+                    <td align="center" style="padding: 20px 30px 10px 30px;">
+                        <p style="font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-size: 16px; font-weight: bold; color: #333333; margin: 0 0 10px 0;">Your Postcard:</p>
+                        <p style="font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-size: 14px; color: #555555; margin: 0 0 5px 0;">Front:</p>
+                        <img src="${postcardData.frontImageUrlForEmail}" alt="Postcard Front" width="400" style="max-width: 100%; width: 400px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); display: block;"/>
+                    </td>
+                </tr>
+                <!-- 4. POSTCARD PREVIEW (BACK) -->
+                <tr>
+                    <td align="center" style="padding: 10px 30px 20px 30px;">
+                        <p style="font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-size: 14px; color: #555555; margin: 0 0 5px 0;">Back:</p>
+                        <img src="${postcardData.backImageUrlWithAddress}" alt="Postcard Back" width="400" style="max-width: 100%; width: 400px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); display: block;"/>
+                    </td>
+                </tr>
+                <!-- 5. DIVIDER -->
+                <tr>
+                    <td align="center" style="padding: 20px 30px;">
+                        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                            <tr>
+                                <td style="border-top: 1px solid #eeeeee;">&nbsp;</td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <!-- 6. SEND AGAIN BUTTON -->
+                <tr>
+                    <td align="center" style="padding: 0px 30px 20px 30px;">
+                        ${sendAgainButtonHtml}
+                    </td>
+                </tr>
+                <!-- 7. DIVIDER -->
+                <tr>
+                    <td align="center" style="padding: 20px 30px;">
+                        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                            <tr>
+                                <td style="border-top: 1px solid #eeeeee;">&nbsp;</td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <!-- 8. PROMO SECTION -->
+                <tr>
+                    <td align="center" style="padding: 0px 30px 20px 30px; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-size: 16px; line-height: 1.5; color: #555555;">
+                        <p style="margin: 0 0 10px 0;">${confirmationEmailConfig.promoText}</p>
+
+                        ${confirmationEmailConfig.promoImageURL ? `
+                        <a href="${confirmationEmailConfig.promoLinkURL || '#'}" target="_blank">
+                            <img src="${confirmationEmailConfig.promoImageURL}" alt="Promo Image" width="300" style="max-width: 100%; width: 300px; margin-top: 10px; border-radius: 8px; display: block; margin-left: auto; margin-right: auto;">
+                        </a>
+                        ` : ''}
+
+                    </td>
+                </tr>
+                <!-- 9. FOOTER -->
+                <tr>
+                    <td align="center" style="padding: 30px 30px; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-size: 12px; line-height: 1.5; color: #888888;">
+                        <p style="margin: 0;">You received this email because you sent a postcard via our service.</p>
+                    </td>
+                </tr>
+            </table>
+            <!--[if mso]>
+            </td>
+            </tr>
+            </table>
+            <![endif]-->
+        </body>
+        </html>
+        `;
+        // --- END ENHANCEMENT #3 ---
+
         const confirmationMsg = {
             to: sender.email,
             from: { email: process.env.SENDGRID_FROM_EMAIL, name: confirmationEmailConfig.senderName },
             subject: subject,
-            html: `<div style="font-family: sans-serif; text-align: center; padding: 20px;">
-                    <h2>${confirmationEmailConfig.senderName}</h2><p>${body}</p><hr style="margin: 20px 0;"/>
-                    <p>${confirmationEmailConfig.promoText}</p>
-                    <a href="${confirmationEmailConfig.promoLinkURL}" target="_blank">
-                        <img src="${confirmationEmailConfig.promoImageURL}" alt="Promo Image" style="max-width: 100%; width: 300px; margin-top: 10px; border-radius: 8px;">
-                    </a></div>`
+            html: emailHtml
         };
+        
         await sgMail.send(confirmationMsg);
 
-        const proto = request.headers['x-forwarded-proto'] || 'http';
-        const host = request.headers['x-forwarded-host'] || request.headers.host;
+        // We already have proto and host, so just build the successUrl
         const successUrl = new URL('/success.html', `${proto}://${host}`);
         
         response.writeHead(302, { Location: successUrl.toString() });
@@ -138,3 +248,4 @@ export default async function handler(request, response) {
         return response.status(500).send(`<h1>Error</h1><p>Failed to send postcard: ${errorMessage}</p>`);
     }
 }
+
