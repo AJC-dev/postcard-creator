@@ -288,8 +288,14 @@ function setupImageUploader(uploaderId, targetInputId, previewId) {
         const file = event.target.files[0];
         if (!file) return;
 
-        // Special handling for postcard promo - upload to Vercel Blob
-        if (uploaderId === 'postcard-promo-image-uploader') {
+        // List of uploaders that should use Vercel Blob (all promo images)
+        const useVercelBlob = [
+            'postcard-promo-image-uploader',
+            'confirmation-promo-image-uploader', 
+            'promo-image-uploader'
+        ].includes(uploaderId);
+
+        if (useVercelBlob) {
             try {
                 // Show loading state
                 preview.style.opacity = '0.5';
@@ -299,7 +305,8 @@ function setupImageUploader(uploaderId, targetInputId, previewId) {
                 // Create filename with timestamp
                 const timestamp = Date.now();
                 const extension = file.name.split('.').pop();
-                const filename = `postcard-promo-${timestamp}.${extension}`;
+                const prefix = uploaderId.replace('-uploader', '');
+                const filename = `${prefix}-${timestamp}.${extension}`;
 
                 // Upload to Vercel Blob
                 const uploadResponse = await fetch(`/api/upload?filename=${filename}`, {
@@ -321,13 +328,13 @@ function setupImageUploader(uploaderId, targetInputId, previewId) {
 
             } catch (error) {
                 console.error('Upload error:', error);
-                alert('Failed to upload promo image: ' + error.message);
+                alert('Failed to upload image: ' + error.message);
                 preview.style.opacity = '1';
                 targetInput.value = '';
                 targetInput.disabled = false;
             }
         } else {
-            // For other images, use base64 as before
+            // For favicons and loading images, keep using base64
             const reader = new FileReader();
             reader.onload = (e) => {
                 const base64String = e.target.result;
