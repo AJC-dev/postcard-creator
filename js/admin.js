@@ -69,6 +69,7 @@ function setupEventListeners() {
     setupImageUploader('promo-image-uploader', 'successPromoImageURL', 'promo-image-preview');
     setupImageUploader('confirmation-promo-image-uploader', 'confirmationPromoImageURL', 'confirmation-promo-image-preview');
     setupImageUploader('postcard-promo-image-uploader', 'postcardPromoImageURL', 'postcard-promo-image-preview');
+    setupImageUploader('company-logo-uploader', 'companyLogoURL', 'company-logo-preview'); // <-- ADDED FOR COMPANY LOGO
 
     // Update previews when URLs are manually changed
     document.getElementById('faviconURL').addEventListener('input', (e) => updatePreviewFromInput(e.target.value, 'favicon-preview'));
@@ -77,6 +78,7 @@ function setupEventListeners() {
     document.getElementById('successPromoImageURL').addEventListener('input', (e) => updatePreviewFromInput(e.target.value, 'promo-image-preview'));
     document.getElementById('confirmationPromoImageURL').addEventListener('input', (e) => updatePreviewFromInput(e.target.value, 'confirmation-promo-image-preview'));
     document.getElementById('postcardPromoImageURL').addEventListener('input', (e) => updatePreviewFromInput(e.target.value, 'postcard-promo-image-preview'));
+    document.getElementById('companyLogoURL').addEventListener('input', (e) => updatePreviewFromInput(e.target.value, 'company-logo-preview')); // <-- ADDED FOR COMPANY LOGO
 
     // Copy buttons for email variables
     document.querySelectorAll('.copy-btn').forEach(button => {
@@ -104,6 +106,14 @@ function populateForm(config) {
     document.getElementById('faviconURL').value = config.content.faviconURL;
     updatePreviewFromInput(config.content.loadingImageURL, 'loading-image-preview');
     document.getElementById('loadingImageURL').value = config.content.loadingImageURL;
+    
+    // --- ADDED FOR COMPANY LOGO ---
+    // Use config.content.companyLogoURL if it exists, otherwise default to an empty string
+    const companyLogoURL = config.content.companyLogoURL || '';
+    document.getElementById('companyLogoURL').value = companyLogoURL;
+    updatePreviewFromInput(companyLogoURL, 'company-logo-preview');
+    // --- END ---
+
     document.getElementById('mainTitle').value = config.content.mainTitle;
     document.getElementById('titleColor').value = config.styles.titleColor;
     document.getElementById('subtitleText').value = config.content.subtitleText;
@@ -169,19 +179,34 @@ async function handleFormSubmit(event) {
     
     // Client-side validation
     const form = document.getElementById('config-form');
-    const inputs = form.querySelectorAll('input, textarea');
+    // Select all inputs *except* the company logo URL, which is optional
+    const inputs = form.querySelectorAll('input:not(#companyLogoURL), textarea');
     let allValid = true;
     for (const input of inputs) {
-        if (input.type !== 'file' && !input.value.trim()) {
+        // Also skip file inputs and optional fields that might be empty
+        if (input.type !== 'file' && !input.value.trim() && input.required) {
             allValid = false;
             input.classList.add('border-red-500');
         } else {
              input.classList.remove('border-red-500');
         }
     }
+    
+    // Re-check the required inputs that were skipped (e.g. faviconURL)
+    const requiredUrlInputs = ['faviconURL', 'loadingImageURL', 'subtitleLinkURL', 'confirmationPromoLinkURL', 'successFaviconURL', 'successPromoLinkURL', 'postcardPromoImageURL'];
+    for (const id of requiredUrlInputs) {
+        const input = document.getElementById(id);
+         if (!input.value.trim()) {
+             allValid = false;
+             input.classList.add('border-red-500');
+         } else {
+             input.classList.remove('border-red-500');
+         }
+    }
+
 
     if (!allValid) {
-        alert('Please fill out all mandatory fields.');
+        alert('Please fill out all mandatory fields (marked with required).');
         return;
     }
 
@@ -193,6 +218,7 @@ async function handleFormSubmit(event) {
             pageTitle: document.getElementById('pageTitle').value,
             faviconURL: document.getElementById('faviconURL').value,
             loadingImageURL: document.getElementById('loadingImageURL').value,
+            companyLogoURL: document.getElementById('companyLogoURL').value, // <-- ADDED FOR COMPANY LOGO
             mainTitle: document.getElementById('mainTitle').value,
             subtitleText: document.getElementById('subtitleText').value,
             subtitleLinkText: document.getElementById('subtitleLinkText').value,
@@ -341,3 +367,4 @@ function updatePreviewFromInput(url, previewId) {
         preview.src = "";
     }
 }
+
