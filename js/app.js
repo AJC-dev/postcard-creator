@@ -390,6 +390,50 @@ function getTextMetrics(ctx) {
     return { x, y, box };
 }
 
+// --- NEW: Helper function to wrap address lines ---
+/**
+ * Wraps a single line of text to a max character length, keeping words whole.
+ * @param {string} text The text to wrap.
+ * @param {number} maxLength The max characters per line.
+ * @returns {string[]} An array of wrapped lines.
+ */
+function wrapAddressLine(text, maxLength) {
+    if (!text) return [];
+    text = text.trim();
+    if (text.length <= maxLength) {
+        return [text];
+    }
+
+    const words = text.split(' ');
+    const lines = [];
+    let currentLine = '';
+
+    for (const word of words) {
+        // Build a test line
+        const testLine = (currentLine.length > 0 ? currentLine + ' ' : '') + word;
+        
+        if (testLine.length > maxLength) {
+            // The test line is too long. Push the current line.
+            if (currentLine.length > 0) {
+                lines.push(currentLine);
+            }
+            // Start a new line with the current word
+            currentLine = word;
+        } else {
+            // The test line is fine. Add the word to the current line.
+            currentLine = testLine;
+        }
+    }
+    
+    // Add the last remaining line
+    if (currentLine.length > 0) {
+        lines.push(currentLine);
+    }
+
+    return lines;
+}
+// --- END NEW HELPER ---
+
 function getHandlePositions(metrics) {
     if (!metrics) return {};
     const { x, y, box } = metrics;
@@ -703,14 +747,26 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
         backCtx.fillStyle = '#333';
         backCtx.font = `400 ${hiResAddressFontSize}px Inter`;
         backCtx.textAlign = 'left';
-        const addressLines = [dom.addressInputs.name.value, dom.addressInputs.line1.value, dom.addressInputs.line2.value, dom.addressInputs.city.value, dom.addressInputs.postcode.value].filter(Boolean);
-        const addressBlockHeight = addressLines.length * hiResAddressFontSize * 1.4;
+
+        // --- FIX: Wrap address lines based on 30 char limit ---
+        const addressLineLimit = 30;
+        const finalAddressLines = [
+            ...wrapAddressLine(dom.addressInputs.name.value, addressLineLimit),
+            ...wrapAddressLine(dom.addressInputs.line1.value, addressLineLimit),
+            ...wrapAddressLine(dom.addressInputs.line2.value, addressLineLimit),
+            ...wrapAddressLine(dom.addressInputs.city.value, addressLineLimit),
+            ...wrapAddressLine(dom.addressInputs.postcode.value, addressLineLimit)
+        ].filter(Boolean); // Filter out any empty strings
+        
+        const addressBlockHeight = finalAddressLines.length * hiResAddressFontSize * 1.4;
         const addressX = dividerX + 20;
         let addressY = (mainContentHeightPx / 2) - (addressBlockHeight / 2);
-        addressLines.forEach(line => {
+        
+        finalAddressLines.forEach(line => {
             backCtx.fillText(line, addressX, addressY);
             addressY += hiResAddressFontSize * 1.4;
         });
+        // --- END FIX ---
     }
     
     return { frontCanvas, backCanvas };
@@ -1298,6 +1354,7 @@ function initializePostcardCreator() {
     toggleAccordion(document.getElementById('accordion-header-5'), true);
     toggleAccordion(document.getElementById('accordion-header-1'), true);
 }
+
 
 
 
