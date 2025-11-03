@@ -747,7 +747,8 @@ async function handleAIAssist() {
     const topic = dom.aiTopic.value;
     const tone = dom.aiTone.value;
     
-    const prompt = `Write a short, casual postcard message (about 3-4 sentences) to ${recipient}. The topic is "${topic}" and the tone should be "${tone}". Sign off with "Best,".`;
+    // --- REMOVED PROMPT GENERATION FROM CLIENT ---
+    // const prompt = ... (this is now done on the server)
 
     const btnText = dom.aiGenerateBtn.querySelector('.btn-text');
     const loader = dom.aiGenerateBtn.querySelector('.loader-small');
@@ -760,7 +761,12 @@ async function handleAIAssist() {
         const response = await fetch(new URL('/api/generate-message', window.location.origin), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: prompt })
+            // --- FIX: Send the raw data the server expects ---
+            body: JSON.stringify({ 
+                recipient: recipient, 
+                topic: topic, 
+                tone: tone 
+            })
         });
 
         if (!response.ok) {
@@ -769,10 +775,13 @@ async function handleAIAssist() {
         }
 
         const data = await response.json();
-        if (data.text) {
-            dom.textInput.value = data.text;
+        // --- UPDATED: Check for 'message' field from server ---
+        if (data.message) {
+            dom.textInput.value = data.message;
             // Trigger input event to update previews and check overflow
             dom.textInput.dispatchEvent(new Event('input', { bubbles: true }));
+        } else {
+            throw new Error('AI response was empty.');
         }
 
     } catch (error) {
@@ -785,7 +794,7 @@ async function handleAIAssist() {
              loader.classList.add('hidden');
              dom.aiGenerateBtn.disabled = false;
         }, 2000);
-        return; // Return early to avoid resetting button text
+         return; // Return early to avoid resetting button text
     }
 
     // Reset button on success
@@ -1289,5 +1298,6 @@ function initializePostcardCreator() {
     toggleAccordion(document.getElementById('accordion-header-5'), true);
     toggleAccordion(document.getElementById('accordion-header-1'), true);
 }
+
 
 
