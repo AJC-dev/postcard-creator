@@ -251,9 +251,22 @@ function drawCleanFrontOnContext(ctx, width, height, bleedPx = 0) {
     }
     if (appState.frontText.text) {
         const { text, font, size, color, x, y, rotation, width: textWidth } = appState.frontText;
-        const effectiveScale = (appState.isPortrait && width > height) ? 
-            height / dom.previewCanvas.el.height : 
-            width / dom.previewCanvas.el.width;
+        
+        // --- FIX: Correct the scale calculation ---
+        // The original calculation incorrectly compared the FULL BLEED width to the CORE preview width.
+        // This resulted in the text being scaled up too large.
+        
+        // The new calculation correctly compares the CORE print width to the CORE preview width.
+        
+        // 1. Calculate the core print width (which is the full 'width' minus bleed on both sides)
+        const corePrintWidth = width - (bleedPx * 2);
+
+        // 2. Calculate the scale factor by comparing the core print width to the core preview width.
+        // This works for both portrait and landscape because the preview canvas
+        // and the print canvas context (after rotation) are oriented the same way.
+        const effectiveScale = corePrintWidth / dom.previewCanvas.el.width;
+        // --- END FIX ---
+
         ctx.save();
         ctx.fillStyle = color;
         ctx.textAlign = 'center';
@@ -1420,6 +1433,7 @@ function initializePostcardCreator() {
     toggleAccordion(document.getElementById('accordion-header-5'), true);
     toggleAccordion(document.getElementById('accordion-header-1'), true);
 }
+
 
 
 
