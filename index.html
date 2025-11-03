@@ -13,7 +13,8 @@
             window.__postcardConfig = null;
             
             // Fetch config as early as possible
-            fetch('/api/get-config')
+            // --- FIX: Use absolute URL for fetch ---
+            fetch(new URL('/api/get-config', window.location.origin))
                 .then(response => {
                     if (!response.ok) throw new Error('Config fetch failed');
                     return response.json();
@@ -78,14 +79,10 @@
 
     <!-- Main Content (hidden by default) -->
     <div id="main-content" class="w-full max-w-2xl mx-auto hidden">
-        
-        <!-- === NEW LOGO START === -->
-        <div class="w-full flex justify-center mb-6">
-            <img id="company-logo" src="" alt="Company Logo" class="h-16 w-auto object-contain hidden">
-        </div>
-        <!-- === NEW LOGO END === -->
-
         <header class="text-center mb-8">
+            <!-- NEW: Company Logo -->
+            <img id="company-logo" src="" alt="Company Logo" class="h-16 w-auto mx-auto mb-4 hidden">
+            
             <h1 id="main-title" class="text-2xl md:text-3xl font-bold"></h1>
             <p id="subtitle" class="text-black mt-2"></p>
         </header>
@@ -164,13 +161,126 @@
                     <svg class="accordion-icon w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </div>
                 <div id="accordion-content-3" class="accordion-content px-4">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="flex flex-col h-full">
-                            <textarea id="text-input" class="w-full p-3 bg-slate-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition duration-200 flex-grow" rows="8"></textarea>
-                            <p id="message-warning" class="text-red-500 text-sm mt-2 hidden">Warning: Message is too long.</p>
-                            <p id="message-profanity-warning" class="text-red-500 text-sm mt-2 hidden"></p>
+                    
+                    <!-- NEW: 2-Column Layout -->
+                    <div class="flex flex-col md:flex-row gap-4">
+
+                        <!-- NEW: Left Column (Textbox & New Controls) -->
+                        <!-- NEW: 60% width on medium screens -->
+                        <div class="flex-1 flex flex-col md:w-3/5">
+                            
+                            <!-- NEW: Textbox & Controls Wrapper -->
+                            <div class="relative flex flex-col h-full border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500">
+                                <textarea id="text-input" class="w-full p-3 bg-slate-50 rounded-t-lg !border-b-0 focus:ring-0 !outline-none !border-none flex-grow" rows="8"></textarea>
+                                <p id="message-warning" class="text-red-500 text-sm px-3 hidden">Warning: Message is too long.</p>
+                                <p id="message-profanity-warning" class="text-red-500 text-sm px-3 hidden"></p>
+
+                                <!-- NEW: Icon-Only Controls Bar (Inside wrapper) -->
+                                <div class="flex items-center gap-2 p-2 bg-slate-50 rounded-b-lg border-t border-slate-200">
+                                    
+                                    <!-- Writing Style Button -->
+                                    <div class="relative w-10 h-10" title="Writing Style">
+                                        <label for="font-select" class="absolute inset-0 flex items-center justify-center text-slate-500 pointer-events-none">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z" />
+                                            </svg>
+                                        </label>
+                                        <select id="font-select" class="w-full h-full bg-white border border-gray-300 rounded-lg appearance-none text-transparent opacity-0.01 cursor-pointer hover:bg-slate-100 focus:ring-2 focus:ring-blue-500">
+                                            <option value="'Dancing Script', cursive">Dancing Script</option>
+                                            <option value="'Caveat', cursive">Caveat</option>
+                                            <option value="'Indie Flower', cursive">Indie Flower</option>
+                                            <option value="'Pacifico', cursive">Pacifico</option>
+                                            <option value="'Homemade Apple', cursive">Homemade Apple</option>
+                                            <option value="'Gochi Hand', cursive" selected>Gochi Hand</option>
+                                            <option value="'Dawning of a New Day', cursive">Dawning of a New Day</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <!-- Font Size Button -->
+                                    <div class="relative w-10 h-10" title="Font Size">
+                                        <label for="font-size-select" class="absolute inset-0 flex items-center justify-center text-slate-500 pointer-events-none">
+                                            <!-- NEW: Big A, Small a SVG -->
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M4 12h8"/>
+                                                <path d="M4 18V6"/>
+                                                <path d="M12 18V6"/>
+                                                <path d="m17 12 3-3m0 0-3-3m3 3h-3"/>
+                                                <path d="m17 18 3 3m0 0 3-3m-3 3v-3"/>
+                                            </svg>
+                                        </label>
+                                        <select id="font-size-select" class="w-full h-full bg-white border border-gray-300 rounded-lg appearance-none text-transparent opacity-0.01 cursor-pointer hover:bg-slate-100 focus:ring-2 focus:ring-blue-500">
+                                            <option value="12">12px</option>
+                                            <option value="16" selected>16px</option>
+                                            <option value="20">20px</option>
+                                            <option value="24">24px</option>
+                                            <option value="28">28px</option>
+                                            <option value="32">32px</option>
+                                            <option value="40">40px</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <!-- Ink Color Button -->
+                                    <div class="relative w-10 h-10" title="Ink Colour">
+                                        <label for="color-picker" class="w-full h-full p-2.5 rounded-lg bg-white border border-gray-300 cursor-pointer hover:bg-slate-50 flex items-center justify-center">
+                                            <!-- NEW: Color Palette SVG -->
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c.34 0 .67-.02 1-.05-.02-.34-.05-.67-.05-1 0-5.52 4.48-10 10-10 5.52 0 10 4.48 10 10 0 .33-.03.66-.05 1 .03.33.05.66.05 1 0 5.52-4.48 10-10 10S2 17.52 2 12c0-5.52 4.48-10 10-10z"/>
+                                                <circle cx="12" cy="7" r="2"/>
+                                                <circle cx="17" cy="7" r="2"/>
+                                                <circle cx="7" cy="12" r="2"/>
+                                                <circle cx="17" cy="12" r="2"/>
+                                                <circle cx="12" cy="17" r="2"/>
+                                                <circle cx="7" cy="17" r="2"/>
+                                            </svg>
+                                        </label>
+                                        <input type="color" id="color-picker" value="#1f2937" class="absolute w-0 h-0 opacity-0 -z-10">
+                                    </div>
+                                    
+                                    <!-- Spacer to push controls to the left -->
+                                    <div class="flex-1"></div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="flex flex-col space-y-4"><select id="font-select" class="w-full p-3 bg-slate-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"><option value="'Dancing Script', cursive">Dancing Script</option><option value="'Caveat', cursive">Caveat</option><option value="'Indie Flower', cursive">Indie Flower</option><option value="'Pacifico', cursive">Pacifico</option><option value="'Homemade Apple', cursive">Homemade Apple</option><option value="'Gochi Hand', cursive" selected>Gochi Hand</option><option value="'Dawning of a New Day', cursive">Dawning of a New Day</option></select><input type="color" id="color-picker" value="#1f2937" class="w-full h-12 p-1 bg-white border border-gray-300 rounded-lg cursor-pointer"><div><label for="font-size-slider" class="block text-sm font-medium text-gray-700 mb-1">Font Size: <span id="font-size-value">16</span>px</label><input type="range" id="font-size-slider" min="12" max="40" value="16"></div><div><label for="font-weight-slider" class="block text-sm font-medium text-gray-700 mb-1">Ink Weight: <span id="font-weight-value">400</span></label><input type="range" id="font-weight-slider" min="100" max="900" step="100" value="400"></div></div>
+
+
+                        <!-- NEW: Right Column (AI Assistant) -->
+                        <!-- NEW: 40% width on medium screens -->
+                        <div class="md:w-2/5">
+                            <div id="ai-assistant-container" class="p-3 bg-slate-100 rounded-lg border border-slate-200">
+                                <h4 class="text-sm font-bold text-gray-700 mb-2">✨ AI Message Assistant</h4>
+                                <div class="flex flex-col gap-3">
+                                    <div>
+                                        <label for="ai-recipient" class="block text-xs font-medium text-gray-600 mb-1">Who is it for?</label>
+                                        <input type="text" id="ai-recipient" placeholder="e.g., Mum, my friend Sarah" class="w-full p-2 bg-white border border-gray-300 rounded-md text-sm">
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label for="ai-topic" class="block text-xs font-medium text-gray-600 mb-1">What's on your mind?</label>
+                                            <select id="ai-topic" class="w-full p-2 bg-white border border-gray-300 rounded-md text-sm">
+                                                <option>Having an awesome time</option>
+                                                <option>Promised I'd write</option>
+                                                <option>How are you doing?</option>
+                                                <option>I'm bored</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label for="ai-tone" class="block text-xs font-medium text-gray-600 mb-1">What's the tone?</label>
+                                            <select id="ai-tone" class="w-full p-2 bg-white border border-gray-300 rounded-md text-sm">
+                                                <option>Funny</option>
+                                                <option>Heartfelt</option>
+                                                <option>Casual</option>
+                                                <option>Excited</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <!-- This button will be styled by js/app.js -->
+                                    <button id="ai-generate-btn" class="w-full font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2 transition duration-300 shadow-md">
+                                        <span class="btn-text">Generate Message</span>
+                                        <div class="loader-small hidden"></div>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -267,6 +377,8 @@
         <button id="close-zoom-modal-btn" class="absolute top-4 right-4 text-white text-3xl font-bold">&times;</button>
     </div>
 
+    <!-- FIX: Point to the correct JS file -->
     <script src="js/app.js" type="module"></script>
 </body>
 </html>
+
