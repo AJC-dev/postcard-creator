@@ -142,12 +142,14 @@
                     <div class="flex items-center justify-center gap-4">
                         <!-- Writing Style Button -->
                         <div class="relative w-10 h-10" title="Writing Style">
-                            <label for="front-font-select" class="absolute inset-0 flex items-center justify-center text-slate-500 pointer-events-none">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <!-- This label is the styled button background -->
+                            <label for="front-font-select" class="w-full h-full p-2.5 rounded-lg bg-white border border-gray-300 cursor-pointer hover:bg-slate-50 flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z" />
                                 </svg>
                             </label>
-                            <select id="front-font-select" class="w-full h-full bg-white border border-gray-300 rounded-lg appearance-none text-transparent opacity-0.01 cursor-pointer hover:bg-slate-100 focus:ring-2 focus:ring-blue-500">
+                            <!-- This select is an invisible layer on top -->
+                            <select id="front-font-select" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
                                 <option value="'Dancing Script', cursive">Dancing Script</option>
                                 <option value="'Caveat', cursive">Caveat</option>
                                 <option value="'Indie Flower', cursive">Indie Flower</option>
@@ -160,22 +162,21 @@
                         
                         <!-- Ink Color Button -->
                         <div class="relative w-10 h-10" title="Ink Colour">
+                             <!-- This label is the styled button background -->
                             <label for="front-color-picker" class="w-full h-full p-2.5 rounded-lg bg-white border border-gray-300 cursor-pointer hover:bg-slate-50 flex items-center justify-center">
-                                <!-- NEW: Color Palette SVG -->
+                                <!-- NEW: Color Palette SVG (copied from section 3) -->
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0L12 2.69z" />
                                     <path d="M12 22a8 8 0 0 0 5.66-13.66L12 2.69 6.34 8.34A8 8 0 0 0 12 22z" />
-                                    <path d="M8.5 2.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z" fill="#F44336" stroke="none"/>
-                                    <path d="M15.5 2.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z" fill="#9C27B0" stroke="none"/>
-                                    <path d="M19.5 8.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z" fill="#3F51B5" stroke="none"/>
-                                    <path d="M19.5 15.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z" fill="#009688" stroke="none"/>
-                                    <path d="M15.5 19.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z" fill="#4CAF50" stroke="none"/>
-                                    <path d="M8.5 19.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z" fill="#FFEB3B" stroke="none"/>
-                                    <path d="M4.5 15.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z" fill="#FF9800" stroke="none"/>
-                                    <path d="M4.5 8.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z" fill="#E91E63" stroke="none"/>
+                                    <circle cx="8.5" cy="8.5" r="1.5" fill="#F44336" stroke="none"/>
+                                    <circle cx="15.5" cy="8.5" r="1.5" fill="#4CAF50" stroke="none"/>
+                                    <circle cx="12" cy="12.5" r="1.5" fill="#2196F3" stroke="none"/>
+                                    <circle cx="8.5" cy="16.5" r="1.5" fill="#FFEB3B" stroke="none"/>
+                                    <circle cx="15.5" cy="16.5" r="1.5" fill="#9C27B0" stroke="none"/>
                                 </svg>
                             </label>
-                            <input type="color" id="front-color-picker" value="#FFFFFF" class="absolute w-0 h-0 opacity-0 -z-10">
+                            <!-- This input is an invisible layer on top -->
+                            <input type="color" id="front-color-picker" value="#FFFFFF" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
                         </div>
                     </div>
                      <button id="no-thanks-text-btn" class="mt-4 w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-4 rounded-lg transition-opacity duration-300">No thanks</button>
@@ -212,12 +213,12 @@
                                     
                                     <!-- Writing Style Button -->
                                     <div class="relative w-10 h-10" title="Writing Style">
-                                        <label for="font-select" class="absolute inset-0 flex items-center justify-center text-slate-500 pointer-events-none">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <label for="font-select" class="w-full h-full p-2.5 rounded-lg bg-white border border-gray-300 cursor-pointer hover:bg-slate-50 flex items-center justify-center">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z" />
                                             </svg>
                                         </label>
-                                        <select id="font-select" class="w-full h-full bg-white border border-gray-300 rounded-lg appearance-none text-transparent opacity-0.01 cursor-pointer hover:bg-slate-100 focus:ring-2 focus:ring-blue-500">
+                                        <select id="font-select" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
                                             <option value="'Dancing Script', cursive">Dancing Script</option>
                                             <option value="'Caveat', cursive">Caveat</option>
                                             <option value="'Indie Flower', cursive">Indie Flower</option>
@@ -230,15 +231,16 @@
                                     
                                     <!-- Font Size Button -->
                                     <div class="relative w-10 h-10" title="Font Size">
-                                        <label for="font-size-select" class="absolute inset-0 flex items-center justify-center text-slate-500 pointer-events-none">
-                                            <!-- NEW: Just "A" icon -->
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                                <path d="M4 12h8"/>
-                                                <path d="M4 18V6"/>
-                                                <path d="M12 18V6"/>
+                                        <label for="font-size-select" class="w-full h-full p-2.5 rounded-lg bg-white border border-gray-300 cursor-pointer hover:bg-slate-50 flex items-center justify-center">
+                                            <!-- NEW: "A" Icon -->
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M7 20v-6h10v6"/>
+                                                <path d="M12 4 4 20"/>
+                                                <path d="M12 4l8 16"/>
+                                                <path d="m8 12 8 0"/>
                                             </svg>
                                         </label>
-                                        <select id="font-size-select" class="w-full h-full bg-white border border-gray-300 rounded-lg appearance-none text-transparent opacity-0.01 cursor-pointer hover:bg-slate-100 focus:ring-2 focus:ring-blue-500">
+                                        <select id="font-size-select" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
                                             <option value="12">12px</option>
                                             <option value="16" selected>16px</option>
                                             <option value="20">20px</option>
@@ -264,7 +266,7 @@
                                                 <circle cx="15.5" cy="16.5" r="1.5" fill="#9C27B0" stroke="none"/>
                                             </svg>
                                         </label>
-                                        <input type="color" id="color-picker" value="#1f2937" class="absolute w-0 h-0 opacity-0 -z-10">
+                                        <input type="color" id="color-picker" value="#1f2937" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
                                     </div>
                                     
                                 </div>
