@@ -63,11 +63,6 @@ function populateDomReferences() {
         colorPicker: document.getElementById('color-picker'),
         // --- NEW: Updated for icon controls ---
         fontSizeSelect: document.getElementById('font-size-select'),
-        // --- REMOVED: Old sliders ---
-        // fontSizeSlider: document.getElementById('font-size-slider'),
-        // fontSizeValue: document.getElementById('font-size-value'),
-        // fontWeightSlider: document.getElementById('font-weight-slider'),
-        // fontWeightValue: document.getElementById('font-weight-value'),
         messageWarning: document.getElementById('message-warning'),
         messageProfanityWarning: document.getElementById('message-profanity-warning'),
         addressInputs: { name: document.getElementById('address-name'), line1: document.getElementById('address-line1'), line2: document.getElementById('address-line2'), city: document.getElementById('address-city'), postcode: document.getElementById('address-postcode'), country: document.getElementById('address-country') },
@@ -233,38 +228,26 @@ function drawCleanFrontOnContext(ctx, width, height, bleedPx = 0) {
      if (appState.uploadedImage) {
         ctx.save();
         
-        // --- FIX 2: Remove black border ---
-        // ctx.translate(bleedPx, bleedPx); // <-- This line was removed
-        
         const effectiveScale = (appState.isPortrait && width > height) ? 
-            height / dom.previewCanvas.el.height : 
-            width / dom.previewCanvas.el.width;
+            height / dom.previewCanvas.el.height : // Portrait: Compare long sides
+            width / dom.previewCanvas.el.width;   // Landscape: Compare long sides
 
         const scaledOffsetX = appState.imageOffsetX * effectiveScale;
         const scaledOffsetY = appState.imageOffsetY * effectiveScale;
         
         // Draw on full width/height to fill the bleed area
         drawCoverImage(ctx, appState.uploadedImage, width, height, scaledOffsetX, scaledOffsetY, appState.imageZoom);
-        // --- END FIX 2 ---
 
         ctx.restore();
     }
     if (appState.frontText.text) {
         const { text, font, size, color, x, y, rotation, width: textWidth } = appState.frontText;
         
-        // --- FIX: Correct the scale calculation ---
-        // The original calculation incorrectly compared the FULL BLEED width to the CORE preview width.
-        // This resulted in the text being scaled up too large.
-        
-        // The new calculation correctly compares the CORE print width to the CORE preview width.
-        
-        // 1. Calculate the core print width (which is the full 'width' minus bleed on both sides)
-        const corePrintWidth = width - (bleedPx * 2);
-
-        // 2. Calculate the scale factor by comparing the core print width to the core preview width.
-        // This works for both portrait and landscape because the preview canvas
-        // and the print canvas context (after rotation) are oriented the same way.
-        const effectiveScale = corePrintWidth / dom.previewCanvas.el.width;
+        // --- FIX: Correct the scale calculation for Portrait vs Landscape ---
+        // This calculation ensures the text scales relative to the correct axis.
+        const effectiveScale = (appState.isPortrait && width > height) ? 
+            height / dom.previewCanvas.el.height : // Portrait: Compare long sides
+            width / dom.previewCanvas.el.width;   // Landscape: Compare long sides
         // --- END FIX ---
 
         ctx.save();
@@ -272,14 +255,17 @@ function drawCleanFrontOnContext(ctx, width, height, bleedPx = 0) {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        // --- FIX 2 (Correction): Apply bleed offset to text as well ---
-        // The text must be offset by the bleed, as it's no longer part of the global translate
+        // The text must be offset by the bleed
         const textX = (x * effectiveScale) + bleedPx;
         const textY = (y * effectiveScale) + bleedPx;
 
         ctx.translate(textX, textY);
         ctx.rotate(rotation * Math.PI / 180);
-        drawWrappedText(ctx, text, 0, 0, textWidth * effectiveScale, size * effectiveScale * 1.2, `${size * effectiveScale}px ${font}`);
+        
+        const scaledSize = size * effectiveScale;
+        const scaledWidth = textWidth * effectiveScale;
+        
+        drawWrappedText(ctx, text, 0, 0, scaledWidth, scaledSize * 1.2, `${scaledSize}px ${font}`);
         ctx.restore();
     }
 }
@@ -298,18 +284,23 @@ function drawPreviewCanvas() {
     ctx.setLineDash([5, 5]);
 
     // --- FIX 1: Set safety margin to 3mm inside core ---
-    const safetyMarginMM = 3; // 3mm safety margin
-    // Calculate margin relative to core dimensions, not bleed
+    // This calculation is now based on the assumption that the preview-canvas *is* the core area.
+    // So we calculate the ratio of 3mm to the core dimension.
+    const safetyMarginMM = 3; 
     const coreWidthMM = postcardConfig.print.a5WidthMM - (postcardConfig.print.bleedMM * 2);
     const coreHeightMM = postcardConfig.print.a5HeightMM - (postcardConfig.print.bleedMM * 2);
 
     // Calculate ratio of (Safety Margin) / (Core Dimension)
+    // We use the A5 dimensions (landscape) to determine which is width/height
     const safetyRatioX = safetyMarginMM / coreWidthMM;
     const safetyRatioY = safetyMarginMM / coreHeightMM;
+    
+    // Apply ratio to the canvas dimensions
+    const canvasSafetyX = appState.isPortrait ? safetyRatioY : safetyRatioX;
+    const canvasSafetyY = appState.isPortrait ? safetyRatioX : safetyRatioY;
 
-    // Apply ratio to the canvas dimensions (which represent the core area)
-    const safetyMarginX = safetyRatioX * canvas.width;
-    const safetyMarginY = safetyRatioY * canvas.height;
+    const safetyMarginX = canvasSafetyX * canvas.width;
+    const safetyMarginY = canvasSafetyY * canvas.height;
     // --- END FIX 1 ---
     
     ctx.strokeRect(safetyMarginX, safetyMarginY, canvas.width - 2 * safetyMarginX, canvas.height - 2 * safetyMarginY);
@@ -402,50 +393,6 @@ function getTextMetrics(ctx) {
     };
     return { x, y, box };
 }
-
-// --- NEW: Helper function to wrap address lines ---
-/**
- * Wraps a single line of text to a max character length, keeping words whole.
- * @param {string} text The text to wrap.
- * @param {number} maxLength The max characters per line.
- * @returns {string[]} An array of wrapped lines.
- */
-function wrapAddressLine(text, maxLength) {
-    if (!text) return [];
-    text = text.trim();
-    if (text.length <= maxLength) {
-        return [text];
-    }
-
-    const words = text.split(' ');
-    const lines = [];
-    let currentLine = '';
-
-    for (const word of words) {
-        // Build a test line
-        const testLine = (currentLine.length > 0 ? currentLine + ' ' : '') + word;
-        
-        if (testLine.length > maxLength) {
-            // The test line is too long. Push the current line.
-            if (currentLine.length > 0) {
-                lines.push(currentLine);
-            }
-            // Start a new line with the current word
-            currentLine = word;
-        } else {
-            // The test line is fine. Add the word to the current line.
-            currentLine = testLine;
-        }
-    }
-    
-    // Add the last remaining line
-    if (currentLine.length > 0) {
-        lines.push(currentLine);
-    }
-
-    return lines;
-}
-// --- END NEW HELPER ---
 
 function getHandlePositions(metrics) {
     if (!metrics) return {};
@@ -612,6 +559,37 @@ function resetImagePreviews() {
     debouncedUpdateAllPreviews();
 }
 
+/**
+ * Wraps a single line of address text to a specified character limit.
+ * @param {CanvasRenderingContext2D} ctx - The canvas context.
+ * @param {string} text - The line of text to wrap.
+ * @param {number} maxWidthPx - The maximum pixel width for a line.
+ * @returns {string[]} An array of wrapped lines.
+ */
+function wrapAddressLine(ctx, text, maxWidthPx) {
+    if (!text) return [];
+    
+    let lines = [];
+    let currentLine = '';
+    const words = text.split(' ');
+
+    for (let i = 0; i < words.length; i++) {
+        const word = words[i];
+        const testLine = currentLine + word + ' ';
+        const metrics = ctx.measureText(testLine);
+        
+        if (metrics.width > maxWidthPx && i > 0) {
+            lines.push(currentLine.trim());
+            currentLine = word + ' ';
+        } else {
+            currentLine = testLine;
+        }
+    }
+    lines.push(currentLine.trim());
+    return lines;
+}
+
+
 async function checkMessageOverflow() {
     await document.fonts.ready;
     const tempCanvas = document.createElement('canvas');
@@ -661,9 +639,12 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
     let finalWidthPx, finalHeightPx;
 
     if (forEmail) {
+        // --- NEW: Add padding for email shadow/outline ---
         const previewBaseWidth = 1200;
-        finalWidthPx = previewBaseWidth;
-        finalHeightPx = Math.round(previewBaseWidth / A5_RATIO);
+        const padding = 20; // 20px padding for shadow
+        finalWidthPx = previewBaseWidth + padding * 2;
+        finalHeightPx = Math.round(previewBaseWidth / A5_RATIO) + padding * 2;
+        // --- END NEW ---
     } else {
         const coreWidthPx = Math.round((a5WidthMM / MM_TO_INCH) * dpi);
         const coreHeightPx = Math.round((a5HeightMM / MM_TO_INCH) * dpi);
@@ -672,182 +653,172 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
         finalHeightPx = coreHeightPx + (bleedPxForPrint * 2);
     }
     
-    // --- FRONT CANVAS ---
-    const frontCanvas = document.createElement('canvas');
-    frontCanvas.width = finalWidthPx;
-    frontCanvas.height = finalHeightPx;
-    const frontCtx = frontCanvas.getContext('2d');
+    // --- FRONT CANVAS (Core Drawing) ---
+    // Create a temporary canvas at the *actual* postcard size (with bleed if for print)
+    const tempFrontCanvas = document.createElement('canvas');
+    const tempFrontWidth = forEmail ? finalWidthPx - 40 : finalWidthPx; // Subtract email padding
+    const tempFrontHeight = forEmail ? finalHeightPx - 40 : finalHeightPx; // Subtract email padding
+    tempFrontCanvas.width = tempFrontWidth;
+    tempFrontCanvas.height = tempFrontHeight;
+    const tempFrontCtx = tempFrontCanvas.getContext('2d');
     
     if (appState.uploadedImage) {
         if (appState.isPortrait) {
-            // Portrait images: rotate 90 degrees to landscape orientation
-            frontCtx.save();
-            frontCtx.translate(finalWidthPx / 2, finalHeightPx / 2);
-            frontCtx.rotate(90 * Math.PI / 180);
-            frontCtx.translate(-finalHeightPx / 2, -finalWidthPx / 2);
-            
-            // Draw with swapped dimensions due to rotation
-            drawCleanFrontOnContext(frontCtx, finalHeightPx, finalWidthPx, forEmail ? 0 : bleedPxForPrint);
-            
-            frontCtx.restore();
+            tempFrontCtx.save();
+            tempFrontCtx.translate(tempFrontWidth / 2, tempFrontHeight / 2);
+            tempFrontCtx.rotate(90 * Math.PI / 180);
+            tempFrontCtx.translate(-tempFrontHeight / 2, -tempFrontWidth / 2);
+            drawCleanFrontOnContext(tempFrontCtx, tempFrontHeight, tempFrontWidth, forEmail ? 0 : bleedPxForPrint);
+            tempFrontCtx.restore();
         } else {
-            // Landscape images: draw normally without rotation
-            drawCleanFrontOnContext(frontCtx, finalWidthPx, finalHeightPx, bleedPxForPrint);
+            drawCleanFrontOnContext(tempFrontCtx, tempFrontWidth, tempFrontHeight, bleedPxForPrint);
         }
     } else {
-        frontCtx.fillStyle = '#FFFFFF';
-        frontCtx.fillRect(0, 0, finalWidthPx, finalHeightPx);
+        tempFrontCtx.fillStyle = '#FFFFFF';
+        tempFrontCtx.fillRect(0, 0, tempFrontWidth, tempFrontHeight);
     }
 
-    // --- BACK CANVAS ---
-    const backCanvas = document.createElement('canvas');
-    const mainContentWidthPx = Math.round((a5WidthMM / MM_TO_INCH) * dpi);
-    const mainContentHeightPx = Math.round((a5HeightMM / MM_TO_INCH) * dpi);
-    backCanvas.width = mainContentWidthPx;
-    backCanvas.height = mainContentHeightPx;
-    const backCtx = backCanvas.getContext('2d');
-    backCtx.fillStyle = 'white';
-    backCtx.fillRect(0, 0, mainContentWidthPx, mainContentHeightPx);
-    backCtx.strokeStyle = '#e5e7eb';
-    backCtx.lineWidth = 5;
-    backCtx.beginPath();
+    // --- BACK CANVAS (Core Drawing) ---
+    const tempBackCanvas = document.createElement('canvas');
+    const mainContentWidthPx = forEmail ? finalWidthPx - 40 : Math.round((a5WidthMM / MM_TO_INCH) * dpi);
+    const mainContentHeightPx = forEmail ? finalHeightPx - 40 : Math.round((a5HeightMM / MM_TO_INCH) * dpi);
+    tempBackCanvas.width = mainContentWidthPx;
+    tempBackCanvas.height = mainContentHeightPx;
+    const tempBackCtx = tempBackCanvas.getContext('2d');
+    tempBackCtx.fillStyle = 'white';
+    tempBackCtx.fillRect(0, 0, mainContentWidthPx, mainContentHeightPx);
+    tempBackCtx.strokeStyle = '#e5e7eb';
+    tempBackCtx.lineWidth = 5;
+    tempBackCtx.beginPath();
     const dividerX = (mainContentWidthPx / 2) + 170;
-    backCtx.moveTo(dividerX, 50);
-    backCtx.lineTo(dividerX, mainContentHeightPx - 50);
-    backCtx.stroke();
-    backCtx.strokeStyle = '#cccccc';
-    backCtx.lineWidth = 5;
-    backCtx.setLineDash([15, 15]);
-    backCtx.strokeRect(mainContentWidthPx - 300, 50, 250, 250);
-    backCtx.setLineDash([]);
+    tempBackCtx.moveTo(dividerX, 50);
+    tempBackCtx.lineTo(dividerX, mainContentHeightPx - 50);
+    tempBackCtx.stroke();
+    tempBackCtx.strokeStyle = '#cccccc';
+    tempBackCtx.lineWidth = 5;
+    tempBackCtx.setLineDash([15, 15]);
+    tempBackCtx.strokeRect(mainContentWidthPx - 300, 50, 250, 250);
+    tempBackCtx.setLineDash([]);
     
-    // --- NEW: Use fontSizeSelect and default weight ---
     const fontSize = dom.fontSizeSelect.value;
     const fontWeight = '400';
     const hiResFontSize = fontSize * (mainContentWidthPx / 504) * 1.2;
     const fontFamily = dom.fontSelect.value;
-    backCtx.fillStyle = dom.colorPicker.value;
-    backCtx.font = `${fontWeight} ${hiResFontSize}px ${fontFamily}`;
-    backCtx.textAlign = 'left';
-    backCtx.textBaseline = 'top';
+    tempBackCtx.fillStyle = dom.colorPicker.value;
+    tempBackCtx.font = `${fontWeight} ${hiResFontSize}px ${fontFamily}`;
+    tempBackCtx.textAlign = 'left';
+    tempBackCtx.textBaseline = 'top';
     const messageText = dom.textInput.value;
     const lines = messageText.split('\n');
-    const messageX = 70;
+    
+    // --- FIX: Nudge message 20px to the right ---
+    const messageX = 90; // Was 70
+    
     let messageY = hiResFontSize * 1.2;
-    const messageMaxWidth = dividerX - messageX - 20;
+    const messageMaxWidth = dividerX - messageX - 20; // This compensates automatically
     const lineHeight = hiResFontSize * 1.2;
     lines.forEach(line => {
         const words = line.split(' ');
         let currentLine = '';
         for (let i = 0; i < words.length; i++) {
             const testLine = currentLine + words[i] + ' ';
-            const metrics = backCtx.measureText(testLine);
+            const metrics = tempBackCtx.measureText(testLine);
             if (metrics.width > messageMaxWidth && i > 0) {
-                backCtx.fillText(currentLine, messageX, messageY);
+                tempBackCtx.fillText(currentLine, messageX, messageY);
                 messageY += lineHeight;
                 currentLine = words[i] + ' ';
             } else {
                 currentLine = testLine;
             }
         }
-        backCtx.fillText(currentLine, messageX, messageY);
+        tempBackCtx.fillText(currentLine, messageX, messageY);
         messageY += lineHeight;
     });
     
-    // ONLY add address if includeAddressOnBack is true
     if (includeAddressOnBack) {
         const hiResAddressFontSize = 12 * (mainContentWidthPx / 504) * 1.2;
-        backCtx.fillStyle = '#333';
-        backCtx.font = `400 ${hiResAddressFontSize}px Inter`;
-        backCtx.textAlign = 'left';
+        tempBackCtx.fillStyle = '#333';
+        tempBackCtx.font = `400 ${hiResAddressFontSize}px Inter`;
+        tempBackCtx.textAlign = 'left';
 
-        // --- FIX: Wrap address lines based on 30 char limit ---
-        const addressLineLimit = 30;
-        const finalAddressLines = [
-            ...wrapAddressLine(dom.addressInputs.name.value, addressLineLimit),
-            ...wrapAddressLine(dom.addressInputs.line1.value, addressLineLimit),
-            ...wrapAddressLine(dom.addressInputs.line2.value, addressLineLimit),
-            ...wrapAddressLine(dom.addressInputs.city.value, addressLineLimit),
-            ...wrapAddressLine(dom.addressInputs.postcode.value, addressLineLimit)
-        ].filter(Boolean); // Filter out any empty strings
+        // --- NEW: Address Wrapping Logic ---
+        const addressLines = [
+            dom.addressInputs.name.value, 
+            dom.addressInputs.line1.value, 
+            dom.addressInputs.line2.value, 
+            dom.addressInputs.city.value, 
+            dom.addressInputs.postcode.value
+        ].filter(Boolean); // Get all non-empty lines
         
-        const addressBlockHeight = finalAddressLines.length * hiResAddressFontSize * 1.4;
+        const addressBlockHeight = addressLines.length * hiResAddressFontSize * 1.4; // Initial estimate
         const addressX = dividerX + 20;
-        let addressY = (mainContentHeightPx / 2) - (addressBlockHeight / 2);
-        
-        finalAddressLines.forEach(line => {
-            backCtx.fillText(line, addressX, addressY);
-            addressY += hiResAddressFontSize * 1.4;
+        let addressY = (mainContentHeightPx / 2) - (addressBlockHeight / 2); // Start Y
+        const addressLineHeight = hiResAddressFontSize * 1.4;
+        const addressMaxWidth = mainContentWidthPx - addressX - 20; // Max width for address
+
+        const allWrappedLines = [];
+        addressLines.forEach(line => {
+            // Wrap each line based on pixel width, not char count, for accuracy
+            const wrapped = wrapAddressLine(tempBackCtx, line, addressMaxWidth);
+            allWrappedLines.push(...wrapped);
         });
-        // --- END FIX ---
+
+        // Re-calculate vertical centering based on the *actual* number of lines
+        const finalAddressBlockHeight = allWrappedLines.length * addressLineHeight;
+        addressY = (mainContentHeightPx / 2) - (finalAddressBlockHeight / 2);
+
+        allWrappedLines.forEach(line => {
+            tempBackCtx.fillText(line, addressX, addressY);
+            addressY += addressLineHeight;
+        });
+        // --- END NEW: Address Wrapping ---
     }
     
-    // --- NEW: Apply shadow and outline ONLY for email images ---
-    if (forEmail) {
-        // Define styles
-        const shadowBlur = 10;
-        const shadowColor = 'rgba(0, 0, 0, 0.2)';
-        const outlineColor = '#E5E7EB'; // A light gray (Tailwind gray-200)
-        const outlineWidth = 1;
-        
-        // Calculate padding needed to contain the shadow
-        const padding = shadowBlur + outlineWidth;
-
-        // --- 1. Process FRONT Canvas ---
-        const frontCanvasWithEffect = document.createElement('canvas');
-        frontCanvasWithEffect.width = frontCanvas.width + padding * 2;
-        frontCanvasWithEffect.height = frontCanvas.height + padding * 2;
-        const frontCtxEffect = frontCanvasWithEffect.getContext('2d');
-        
-        // Draw the shadow
-        frontCtxEffect.shadowBlur = shadowBlur;
-        frontCtxEffect.shadowColor = shadowColor;
-        // We fill a rect to *create* the shadow, but make it transparent
-        // so only the shadow is visible.
-        frontCtxEffect.fillStyle = 'rgba(255, 255, 255, 0)';
-        frontCtxEffect.fillRect(padding, padding, frontCanvas.width, frontCanvas.height);
-        
-        // Turn off shadow for next steps
-        frontCtxEffect.shadowColor = 'transparent';
-
-        // Draw the postcard image itself on top
-        frontCtxEffect.drawImage(frontCanvas, padding, padding);
-
-        // Draw the outline on top of the image
-        frontCtxEffect.strokeStyle = outlineColor;
-        frontCtxEffect.lineWidth = outlineWidth;
-        // Adjust strokeRect to perfectly align with the image edge
-        frontCtxEffect.strokeRect(padding - (outlineWidth / 2), padding - (outlineWidth / 2), frontCanvas.width + outlineWidth, frontCanvas.height + outlineWidth);
-
-        // --- 2. Process BACK Canvas ---
-        const backCanvasWithEffect = document.createElement('canvas');
-        backCanvasWithEffect.width = backCanvas.width + padding * 2;
-        backCanvasWithEffect.height = backCanvas.height + padding * 2;
-        const backCtxEffect = backCanvasWithEffect.getContext('2d');
-        
-        // Draw shadow
-        backCtxEffect.shadowBlur = shadowBlur;
-        backCtxEffect.shadowColor = shadowColor;
-        backCtxEffect.fillStyle = 'rgba(255, 255, 255, 0)';
-        backCtxEffect.fillRect(padding, padding, backCanvas.width, backCanvas.height);
-        
-        // Turn off shadow
-        backCtxEffect.shadowColor = 'transparent';
-
-        // Draw image
-        backCtxEffect.drawImage(backCanvas, padding, padding);
-        
-        // Draw outline
-        backCtxEffect.strokeStyle = outlineColor;
-        backCtxEffect.lineWidth = outlineWidth;
-        backCtxEffect.strokeRect(padding - (outlineWidth / 2), padding - (outlineWidth / 2), backCanvas.width + outlineWidth, backCanvas.height + outlineWidth);
-
-        // --- 3. Return the NEW, decorated canvases ---
-        return { frontCanvas: frontCanvasWithEffect, backCanvas: backCanvasWithEffect };
+    // --- FINAL CANVAS PREPARATION ---
+    
+    // If for print, return the raw, unstyled canvases
+    if (!forEmail) {
+        return { frontCanvas: tempFrontCanvas, backCanvas: tempBackCanvas };
     }
-    // --- END NEW LOGIC ---
 
-    // This is the original return for the PRINT API path (forEmail = false)
+    // --- NEW: If for email, create new canvases and add shadow/outline ---
+    const frontCanvas = document.createElement('canvas');
+    frontCanvas.width = finalWidthPx;
+    frontCanvas.height = finalHeightPx;
+    const frontCtx = frontCanvas.getContext('2d');
+    
+    const backCanvas = document.createElement('canvas');
+    backCanvas.width = finalWidthPx; // Back canvas for email has same outer dims
+    backCanvas.height = finalHeightPx;
+    const backCtx = backCanvas.getContext('2d');
+
+    // Apply shadow and outline
+    [frontCtx, backCtx].forEach(ctx => {
+        // --- FIX: Adjust shadow to be lighter, matching shadow-md ---
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.1)'; // Was 0.3
+        ctx.shadowBlur = 6; // Was 10
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 4;
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)'; // 1px outline
+        ctx.lineWidth = 1;
+        // --- END FIX ---
+    });
+
+    // Draw the temp canvases onto the final canvases (with padding)
+    const padding = 20;
+    frontCtx.drawImage(tempFrontCanvas, padding, padding);
+    frontCtx.strokeRect(padding, padding, tempFrontWidth, tempFrontHeight); // Add outline
+    
+    // The back canvas for email needs to be drawn relative to the front
+    const backRatio = tempBackCanvas.width / tempBackCanvas.height;
+    const backHeight = tempFrontHeight;
+    const backWidth = backHeight * backRatio;
+    const backX = (finalWidthPx - backWidth) / 2;
+    const backY = padding;
+    
+    backCtx.drawImage(tempBackCanvas, backX, backY, backWidth, backHeight);
+    backCtx.strokeRect(backX, backY, backWidth, backHeight); // Add outline
+    
     return { frontCanvas, backCanvas };
 }
 
@@ -855,8 +826,13 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
 async function updateFinalPreviews() {
     const { frontCanvas, backCanvas } = await generatePostcardImages({ forEmail: true, includeAddressOnBack: true });
     
-    // Adjust preview container aspect ratio based on image orientation
     const frontPreviewContainer = dom.finalPreviewFrontContainer;
+    const backPreviewContainer = dom.finalPreviewBackContainer; // Make sure this ID exists
+    
+    // Adjust preview container aspect ratio based on *email canvas* aspect ratio
+    const emailCanvasRatio = frontCanvas.width / frontCanvas.height;
+    
+    // We adjust the container, the img tag's object-fit will handle the rest
     if (appState.isPortrait) {
         frontPreviewContainer.classList.remove('aspect-[210/148]');
         frontPreviewContainer.classList.add('aspect-[148/210]');
@@ -864,26 +840,43 @@ async function updateFinalPreviews() {
         frontPreviewContainer.classList.remove('aspect-[148/210]');
         frontPreviewContainer.classList.add('aspect-[210/148]');
     }
+    // The back preview should always match the front's orientation
+    if (backPreviewContainer) {
+         if (appState.isPortrait) {
+            backPreviewContainer.classList.remove('aspect-[210/148]');
+            backPreviewContainer.classList.add('aspect-[148/210]');
+        } else {
+            backPreviewContainer.classList.remove('aspect-[148/210]');
+            backPreviewContainer.classList.add('aspect-[210/148]');
+        }
+    }
     
     frontCanvas.toBlob(blob => {
         if (dom.finalPreviewFront.src) URL.revokeObjectURL(dom.finalPreviewFront.src);
         dom.finalPreviewFront.src = URL.createObjectURL(blob);
+        dom.finalPreviewFront.style.objectFit = 'contain'; // Use contain to show shadow
     });
     
     backCanvas.toBlob(blob => {
         if (dom.finalPreviewBack.src) URL.revokeObjectURL(dom.finalPreviewBack.src);
         dom.finalPreviewBack.src = URL.createObjectURL(blob);
+        dom.finalPreviewBack.style.objectFit = 'contain'; // Use contain to show shadow
     });
 }
 
 // --- NEW: AI Message Generation ---
 async function handleAIAssist() {
-    const recipient = dom.aiRecipient.value || 'my friend';
+    // --- FIX: Read from the correct DOM elements ---
+    const recipient = dom.aiRecipient.value || 'my friend'; // Use 'my friend' as fallback
     const topic = dom.aiTopic.value;
     const tone = dom.aiTone.value;
-    
-    // --- REMOVED PROMPT GENERATION FROM CLIENT ---
-    // const prompt = ... (this is now done on the server)
+    // --- END FIX ---
+
+    // Check if fields are empty
+    if (!topic || !tone) {
+         // This error was being thrown incorrectly. We check on the server.
+         // Let's just use the values, even if one is empty (e.g. default)
+    }
 
     const btnText = dom.aiGenerateBtn.querySelector('.btn-text');
     const loader = dom.aiGenerateBtn.querySelector('.loader-small');
@@ -893,43 +886,42 @@ async function handleAIAssist() {
     dom.aiGenerateBtn.disabled = true;
 
     try {
+        // --- FIX: Send JSON in the format the API expects ---
         const response = await fetch(new URL('/api/generate-message', window.location.origin), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            // --- FIX: Send the raw data the server expects ---
             body: JSON.stringify({ 
                 recipient: recipient, 
                 topic: topic, 
                 tone: tone 
             })
         });
+        // --- END FIX ---
+
+        const result = await response.json(); // Always parse JSON
 
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Failed to generate message');
+            // Throw the error message from the server (e.g., "Missing required fields")
+            throw new Error(result.message || 'Failed to generate message');
         }
 
-        const data = await response.json();
-        // --- UPDATED: Check for 'message' field from server ---
-        if (data.message) {
-            dom.textInput.value = data.message;
+        if (result.message) {
+            dom.textInput.value = result.message;
             // Trigger input event to update previews and check overflow
             dom.textInput.dispatchEvent(new Event('input', { bubbles: true }));
-        } else {
-            throw new Error('AI response was empty.');
         }
 
     } catch (error) {
         console.error('AI Assist Error:', error);
+        // Show the specific error from the server
         showGlobalError(`AI Assistant failed: ${error.message}`);
-        // Show a temporary error state on the button
         btnText.textContent = 'Error!';
         setTimeout(() => {
              btnText.textContent = 'Generate Message';
              loader.classList.add('hidden');
              dom.aiGenerateBtn.disabled = false;
         }, 2000);
-         return; // Return early to avoid resetting button text
+        return; 
     }
 
     // Reset button on success
@@ -944,6 +936,9 @@ async function handleImageSearch() {
     if (!query) return;
     if (!postcardConfig.apiKeys.pixabayApiKey) {
         console.error("Pixabay API Key not available.");
+        // --- NEW: Show user error ---
+        showGlobalError("Image search feature is not configured.");
+        dom.search.modal.style.display = 'none';
         return;
     }
     dom.search.loader.style.display = 'flex';
@@ -1000,10 +995,11 @@ async function handleSendPostcard() {
     const requiredAddressFields = [dom.addressInputs.name, dom.addressInputs.line1, dom.addressInputs.city, dom.addressInputs.postcode];
     const allValid = requiredAddressFields.every(input => input.value.trim() !== '');
     if (!allValid) {
-        alert('Please fill in all required recipient address fields before sending.');
+        // --- FIX: Use custom modal, not alert ---
+        showGlobalError('Please fill in all required recipient address fields.');
         const firstEmpty = requiredAddressFields.find(input => input.value.trim() === '');
         if (firstEmpty) {
-            toggleAccordion(document.getElementById('accordion-header-3'), true);
+            toggleAccordion(document.getElementById('accordion-header-4'), true); // Open address accordion
             firstEmpty.focus();
         }
         return;
@@ -1011,12 +1007,21 @@ async function handleSendPostcard() {
     const frontIsProfane = await checkForProfanityAPI(dom.frontText.input.value, dom.frontText.profanityWarning);
     const backIsProfane = await checkForProfanityAPI(dom.textInput.value, dom.messageProfanityWarning);
     if (frontIsProfane || backIsProfane) {
-        alert("Be more friendly - consider revising the text");
+        // --- FIX: Use custom modal, not alert ---
+        showGlobalError("Be more friendly - consider revising the text.");
         return;
     }
     dom.sender.modal.style.display = 'flex';
     dom.sender.nameInput.value = localStorage.getItem('senderName') || '';
     dom.sender.emailInput.value = localStorage.getItem('senderEmail') || '';
+    
+    // Ensure reCAPTCHA is available
+    if (typeof grecaptcha === 'undefined' || !grecaptcha.render) {
+        showGlobalError("reCAPTCHA failed to load. Please check your connection.");
+        dom.sender.modal.style.display = 'none';
+        return;
+    }
+    
     if (dom.sender.recaptchaContainer.innerHTML.trim() === '') {
          grecaptcha.render(dom.sender.recaptchaContainer, { 'sitekey' : postcardConfig.apiKeys.recaptchaSiteKey });
     } else {
@@ -1029,11 +1034,13 @@ async function handleFinalSend() {
     const senderEmail = dom.sender.emailInput.value;
     const recaptchaToken = grecaptcha.getResponse();
     if (!senderName.trim() || !senderEmail.trim()) {
-        alert('Please enter your name and email address.');
+        dom.sender.errorMessage.textContent = 'Please enter your name and email address.';
+        dom.sender.errorMessage.classList.remove('hidden');
         return;
     }
     if (!recaptchaToken) {
-        alert('Please complete the reCAPTCHA verification.');
+        dom.sender.errorMessage.textContent = 'Please complete the reCAPTCHA verification.';
+        dom.sender.errorMessage.classList.remove('hidden');
         return;
     }
     localStorage.setItem('senderName', senderName);
@@ -1061,10 +1068,11 @@ async function handleFinalSend() {
             return lowResCanvas;
         };
 
+        // --- FIX: Generate *email* images (with shadow) and then resize them ---
         const { frontCanvas: highResEmailFrontCanvas, backCanvas: highResEmailBackCanvas } = await generatePostcardImages({ forEmail: true, includeAddressOnBack: true });
         const lowResFrontCanvasForEmail = createLowResCanvas(highResEmailFrontCanvas);
         const lowResBackCanvasForEmail = createLowResCanvas(highResEmailBackCanvas);
-        // --- END: Create LOW-RESOLUTION versions for email ---
+        // --- END FIX ---
 
 
         const frontBlobForPrint = await new Promise(resolve => frontCanvasForPrint.toBlob(resolve, 'image/jpeg', 0.9));
@@ -1080,6 +1088,7 @@ async function handleFinalSend() {
         const frontEmailFilename = `${sanitizedEmail}-${sanitizedName}-${sanitizedPostcode}-front-email-${timestamp}.jpg`;
         const backPrintFilename = `${sanitizedEmail}-${sanitizedName}-${sanitizedPostcode}-back-print-${timestamp}.jpg`;
         const backEmailFilename = `${sanitizedEmail}-${sanitizedName}-${sanitizedPostcode}-back-email-${timestamp}.jpg`;
+        
         const uploadAndGetData = async (filename, blob) => {
             // --- FIX: Use absolute URL for fetch ---
             const response = await fetch(new URL(`/api/upload?filename=${filename}`, window.location.origin), { method: 'POST', body: blob });
@@ -1089,16 +1098,19 @@ async function handleFinalSend() {
             }
             return response.json();
         };
+        
         const [frontEmailBlobData, backEmailBlobData] = await Promise.all([
             uploadAndGetData(frontEmailFilename, frontBlobForEmail),
             uploadAndGetData(backEmailFilename, backBlobForEmail)
         ]);
         const frontPrintBlobData = await uploadAndGetData(frontPrintFilename, frontBlobForPrint);
         const backPrintBlobData = await uploadAndGetData(backPrintFilename, backBlobForPrint);
+        
         const recipient = {};
         for (const key in dom.addressInputs) {
             recipient[key] = dom.addressInputs[key].value.trim();
         }
+        
         const resendData = {
             imageSrc: appState.imageSrcForResend,
             isPortrait: appState.isPortrait,
@@ -1120,7 +1132,7 @@ async function handleFinalSend() {
             frontImageUrl: frontPrintBlobData.url,
             frontImageUrlForEmail: frontEmailBlobData.url,
             backImageUrl: backPrintBlobData.url, 
-            backImageUrlWithAddress: backEmailBlobData.url,
+            backImageUrlWithAddress: backEmailBlobData.url, // This is the low-res one
             emailConfig: {
                 subject: postcardConfig.email.subject,
                 body: postcardConfig.email.body,
@@ -1170,18 +1182,21 @@ const debouncedProfanityCheck = debounce(checkForProfanityAPI, 500);
 function initializePostcardCreator() {
     
     // --- NEW: Check for AI API key ---
-    // We can't check the key directly, but we can check if the config object
-    // for API keys exists. If not, hide the AI feature.
-    if (!postcardConfig.apiKeys) {
-        dom.aiAssistantContainer.classList.add('hidden');
+    if (!postcardConfig.apiKeys || !postcardConfig.apiKeys.geminiApiKey) {
+        console.warn("Gemini API key not configured, hiding AI assistant.");
+        if(dom.aiAssistantContainer) dom.aiAssistantContainer.classList.add('hidden');
     }
     
     if (!postcardConfig.apiKeys || !postcardConfig.apiKeys.recaptchaSiteKey) {
-    console.warn("ReCAPTCHA key not configured - form validation may be limited");
-        dom.findImageButton.disabled = true;
-        dom.sendPostcardBtn.disabled = true;
-        return;
+        console.warn("ReCAPTCHA key not configured, postcard sending will be disabled.");
+        if(dom.sendPostcardBtn) dom.sendPostcardBtn.disabled = true;
     }
+    
+    if (!postcardConfig.apiKeys || !postcardConfig.apiKeys.pixabayApiKey) {
+        console.warn("Pixabay API key not configured, image search will be disabled.");
+        if(dom.findImageButton) dom.findImageButton.disabled = true;
+    }
+
 
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('sendAgain') === 'true') {
@@ -1428,14 +1443,11 @@ function initializePostcardCreator() {
     dom.zoom.closeBtn.addEventListener('click', () => dom.zoom.modal.style.display = 'none');
     
     // --- NEW: Add listener for AI button ---
-    dom.aiGenerateBtn.addEventListener('click', handleAIAssist);
+    if(dom.aiGenerateBtn) { // Check if it exists before adding listener
+        dom.aiGenerateBtn.addEventListener('click', handleAIAssist);
+    }
     
     toggleAccordion(document.getElementById('accordion-header-5'), true);
     toggleAccordion(document.getElementById('accordion-header-1'), true);
 }
-
-
-
-
-
 
