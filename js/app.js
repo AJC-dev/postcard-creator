@@ -714,8 +714,8 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
     const messageText = dom.textInput.value;
     const lines = messageText.split('\n');
     
-    // --- FIX 3: Nudge message left by 15px ---
-    const messageX = 75; // Was 90
+    // --- FIX 3: Nudge message left by 25px ---
+    const messageX = 50; // Was 75
     
     let messageY = hiResFontSize * 1.2;
     const messageMaxWidth = dividerX - messageX - 20; // This compensates automatically
@@ -797,20 +797,19 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
 
     // Apply shadow and outline
     [frontCtx, backCtx].forEach(ctx => {
-        // --- FIX 2: Adjust shadow to be lighter, matching shadow-md ---
+        // --- FIX 2: Soft shadow only, no outline ---
         ctx.shadowColor = 'rgba(0, 0, 0, 0.1)'; // Softer shadow color
         ctx.shadowBlur = 6; // Softer blur
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 4; // Standard shadow-md offset
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)'; // 1px subtle outline
-        ctx.lineWidth = 1;
+        // (Removed strokeStyle and lineWidth)
         // --- END FIX 2 ---
     });
 
     // Draw the temp canvases onto the final canvases (with padding)
     const padding = 20;
     frontCtx.drawImage(tempFrontCanvas, padding, padding);
-    frontCtx.strokeRect(padding, padding, tempFrontWidth, tempFrontHeight); // Add outline
+    // frontCtx.strokeRect(padding, padding, tempFrontWidth, tempFrontHeight); // <-- FIX 2: Removed outline
     
     // The back canvas for email needs to be drawn relative to the front
     const backRatio = tempBackCanvas.width / tempBackCanvas.height;
@@ -820,7 +819,7 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
     const backY = padding;
     
     backCtx.drawImage(tempBackCanvas, backX, backY, backWidth, backHeight);
-    backCtx.strokeRect(backX, backY, backWidth, backHeight); // Add outline
+    // backCtx.strokeRect(backX, backY, backWidth, backHeight); // <-- FIX 2: Removed outline
     
     return { frontCanvas, backCanvas };
 }
