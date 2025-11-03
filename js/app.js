@@ -36,7 +36,6 @@ function populateDomReferences() {
         favicon: document.getElementById('favicon'),
         mainTitle: document.getElementById('main-title'),
         subtitle: document.getElementById('subtitle'),
-        companyLogo: document.getElementById('company-logo'), // <-- ADDED FOR COMPANY LOGO
         uploadButton: document.getElementById('upload-button'),
         findImageButton: document.getElementById('find-image-button'),
         sendPostcardBtn: document.getElementById('send-postcard-btn'),
@@ -62,10 +61,13 @@ function populateDomReferences() {
         textInput: document.getElementById('text-input'),
         fontSelect: document.getElementById('font-select'),
         colorPicker: document.getElementById('color-picker'),
-        fontSizeSlider: document.getElementById('font-size-slider'),
-        fontSizeValue: document.getElementById('font-size-value'),
-        fontWeightSlider: document.getElementById('font-weight-slider'),
-        fontWeightValue: document.getElementById('font-weight-value'),
+        // --- NEW: Updated for icon controls ---
+        fontSizeSelect: document.getElementById('font-size-select'),
+        // --- REMOVED: Old sliders ---
+        // fontSizeSlider: document.getElementById('font-size-slider'),
+        // fontSizeValue: document.getElementById('font-size-value'),
+        // fontWeightSlider: document.getElementById('font-weight-slider'),
+        // fontWeightValue: document.getElementById('font-weight-value'),
         messageWarning: document.getElementById('message-warning'),
         messageProfanityWarning: document.getElementById('message-profanity-warning'),
         addressInputs: { name: document.getElementById('address-name'), line1: document.getElementById('address-line1'), line2: document.getElementById('address-line2'), city: document.getElementById('address-city'), postcode: document.getElementById('address-postcode'), country: document.getElementById('address-country') },
@@ -92,17 +94,28 @@ function populateDomReferences() {
         loadingOverlay: document.getElementById('loading-overlay'),
         loadingImage: document.getElementById('loading-image'),
         mainContent: document.getElementById('main-content'),
+        // --- NEW: Company Logo ---
+        companyLogo: document.getElementById('company-logo'),
+        // --- NEW: AI Assistant ---
+        aiAssistantContainer: document.getElementById('ai-assistant-container'),
+        aiRecipient: document.getElementById('ai-recipient'),
+        aiTopic: document.getElementById('ai-topic'),
+        aiTone: document.getElementById('ai-tone'),
+        aiGenerateBtn: document.getElementById('ai-generate-btn')
     };
 }
 
 async function loadConfigAndInitialize() {
     try {
-        // Use the preloaded config if available, otherwise fetch
-        if (window.__postcardConfig) {
+        // Try loading config from global preload first
+        if (window.__postcardConfig && window.__postcardConfig.content) {
+            console.log("Using preloaded config.");
             postcardConfig = window.__postcardConfig;
         } else {
-            console.log("Preload config not found, fetching...");
-            const response = await fetch('/api/get-config');
+            // If preload failed or didn't run, fetch manually
+            console.log("Preloaded config not found, fetching manually.");
+            // --- FIX: Use absolute URL for fetch ---
+            const response = await fetch(new URL('/api/get-config', window.location.origin));
             if (!response.ok) {
                  throw new Error('Could not fetch config from API');
             }
@@ -111,25 +124,12 @@ async function loadConfigAndInitialize() {
     } catch (error) {
         console.error("Could not fetch from DB, using local defaults.", error);
         postcardConfig = fallbackConfig;
-        postcardConfig.apiKeys = { recaptchaSiteKey: '', pixabayApiKey: '' }; 
         showGlobalError("Could not load application configuration. Using offline defaults.");
     } finally {
-        // Ensure config is applied even if it was preloaded
         applyConfiguration();
         initializePostcardCreator();
-        
-        // Use requestAnimationFrame for a smoother transition
-        requestAnimationFrame(() => {
-            dom.loadingOverlay.style.opacity = '0';
-            dom.loadingOverlay.style.transition = 'opacity 0.5s ease-out';
-            dom.mainContent.style.opacity = '1';
-            dom.mainContent.style.transition = 'opacity 0.5s ease-in 0.3s';
-            dom.mainContent.classList.remove('hidden');
-
-            setTimeout(() => {
-                 dom.loadingOverlay.style.display = 'none';
-            }, 500); // Hide after transition
-        });
+        dom.loadingOverlay.style.display = 'none';
+        dom.mainContent.style.display = 'block';
     }
 }
 
@@ -142,33 +142,37 @@ function showGlobalError(message) {
 }
 
 function applyConfiguration() {
-    document.title = postcardConfig.content.pageTitle;
-    dom.favicon.href = postcardConfig.content.faviconURL;
-    dom.loadingImage.src = postcardConfig.content.loadingImageURL;
-    dom.mainTitle.textContent = postcardConfig.content.mainTitle;
-    dom.mainTitle.style.color = postcardConfig.styles.titleColor;
-
-    // --- ADDED FOR COMPANY LOGO ---
+    // This function applies config to the page
+    // Note: Favicon and Page Title are handled by the preload script
+    
+    // --- NEW: Company Logo ---
     if (postcardConfig.content.companyLogoURL) {
         dom.companyLogo.src = postcardConfig.content.companyLogoURL;
         dom.companyLogo.classList.remove('hidden');
     } else {
         dom.companyLogo.classList.add('hidden');
     }
-    // --- END ---
+    
+    dom.loadingImage.src = postcardConfig.content.loadingImageURL;
+    dom.mainTitle.textContent = postcardConfig.content.mainTitle;
+    dom.mainTitle.style.color = postcardConfig.styles.titleColor;
 
     const subtitleLink = `<a href="${postcardConfig.content.subtitleLinkURL}" target="_blank" class="font-bold hover:underline" style="color: ${postcardConfig.styles.subtitleLinkColor};">${postcardConfig.content.subtitleLinkText}</a>`;
     dom.subtitle.innerHTML = `${postcardConfig.content.subtitleText} ${subtitleLink}.`;
 
+    // Apply button styles
     dom.uploadButton.style.backgroundColor = postcardConfig.styles.uploadButtonColor;
     dom.uploadButton.style.color = postcardConfig.styles.uploadButtonTextColor;
     dom.findImageButton.style.backgroundColor = postcardConfig.styles.findImageButtonColor;
     dom.findImageButton.style.color = postcardConfig.styles.findImageButtonTextColor;
     dom.sendPostcardBtn.style.backgroundColor = postcardConfig.styles.sendPostcardButtonColor;
     dom.sendPostcardBtn.style.color = postcardConfig.styles.sendPostcardButtonTextColor;
+    
+    // --- NEW: AI Assist Button Style ---
+    dom.aiGenerateBtn.style.backgroundColor = postcardConfig.styles.uploadButtonColor;
+    dom.aiGenerateBtn.style.color = postcardConfig.styles.uploadButtonTextColor;
 }
 
-// ... rest of the file is the same as the last version of app.js ...
 async function checkForProfanityAPI(text, warningElement) {
     if (!text.trim()) {
         warningElement.classList.add('hidden');
@@ -281,16 +285,18 @@ function drawPreviewCanvas() {
     ctx.setLineDash([5, 5]);
 
     // --- FIX 1: Set safety margin to 3mm inside core ---
-    // Use the core dimensions for calculating the ratio, not the bleed-inclusive dimensions
+    const safetyMarginMM = 3; // 3mm safety margin
+    // Calculate margin relative to core dimensions, not bleed
     const coreWidthMM = postcardConfig.print.a5WidthMM - (postcardConfig.print.bleedMM * 2);
     const coreHeightMM = postcardConfig.print.a5HeightMM - (postcardConfig.print.bleedMM * 2);
-    const safetyMarginMM = 3; // 3mm safety margin
 
-    const safetyMarginRatioX = (postcardConfig.print.bleedMM + safetyMarginMM) / postcardConfig.print.a5WidthMM;
-    const safetyMarginRatioY = (postcardConfig.print.bleedMM + safetyMarginMM) / postcardConfig.print.a5HeightMM;
-    
-    const safetyMarginX = safetyMarginRatioX * canvas.width;
-    const safetyMarginY = safetyMarginRatioY * canvas.height;
+    // Calculate ratio of (Safety Margin) / (Core Dimension)
+    const safetyRatioX = safetyMarginMM / coreWidthMM;
+    const safetyRatioY = safetyMarginMM / coreHeightMM;
+
+    // Apply ratio to the canvas dimensions (which represent the core area)
+    const safetyMarginX = safetyRatioX * canvas.width;
+    const safetyMarginY = safetyRatioY * canvas.height;
     // --- END FIX 1 ---
     
     ctx.strokeRect(safetyMarginX, safetyMarginY, canvas.width - 2 * safetyMarginX, canvas.height - 2 * safetyMarginY);
@@ -554,8 +560,9 @@ async function checkMessageOverflow() {
     const tempCanvas = document.createElement('canvas');
     const tempCtx = tempCanvas.getContext('2d');
     const finalWidthPx = Math.round((postcardConfig.print.a5WidthMM / 25.4) * postcardConfig.print.dpi);
-    const fontSize = dom.fontSizeSlider.value;
-    const fontWeight = dom.fontWeightSlider.value;
+    // --- NEW: Use fontSizeSelect and default weight ---
+    const fontSize = dom.fontSizeSelect.value;
+    const fontWeight = '400'; // Default weight
     const hiResFontSize = fontSize * (finalWidthPx / 504) * 1.2;
     const fontFamily = dom.fontSelect.value;
     const lineHeight = hiResFontSize * 1.2;
@@ -657,8 +664,9 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
     backCtx.strokeRect(mainContentWidthPx - 300, 50, 250, 250);
     backCtx.setLineDash([]);
     
-    const fontSize = dom.fontSizeSlider.value;
-    const fontWeight = dom.fontWeightSlider.value;
+    // --- NEW: Use fontSizeSelect and default weight ---
+    const fontSize = dom.fontSizeSelect.value;
+    const fontWeight = '400';
     const hiResFontSize = fontSize * (mainContentWidthPx / 504) * 1.2;
     const fontFamily = dom.fontSelect.value;
     backCtx.fillStyle = dom.colorPicker.value;
@@ -733,6 +741,60 @@ async function updateFinalPreviews() {
     });
 }
 
+// --- NEW: AI Message Generation ---
+async function handleAIAssist() {
+    const recipient = dom.aiRecipient.value || 'my friend';
+    const topic = dom.aiTopic.value;
+    const tone = dom.aiTone.value;
+    
+    const prompt = `Write a short, casual postcard message (about 3-4 sentences) to ${recipient}. The topic is "${topic}" and the tone should be "${tone}". Sign off with "Best,".`;
+
+    const btnText = dom.aiGenerateBtn.querySelector('.btn-text');
+    const loader = dom.aiGenerateBtn.querySelector('.loader-small');
+    
+    btnText.textContent = 'Generating...';
+    loader.classList.remove('hidden');
+    dom.aiGenerateBtn.disabled = true;
+
+    try {
+        const response = await fetch(new URL('/api/generate-message', window.location.origin), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: prompt })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to generate message');
+        }
+
+        const data = await response.json();
+        if (data.text) {
+            dom.textInput.value = data.text;
+            // Trigger input event to update previews and check overflow
+            dom.textInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+
+    } catch (error) {
+        console.error('AI Assist Error:', error);
+        showGlobalError(`AI Assistant failed: ${error.message}`);
+        // Show a temporary error state on the button
+        btnText.textContent = 'Error!';
+        setTimeout(() => {
+             btnText.textContent = 'Generate Message';
+             loader.classList.add('hidden');
+             dom.aiGenerateBtn.disabled = false;
+        }, 2000);
+        return; // Return early to avoid resetting button text
+    }
+
+    // Reset button on success
+    btnText.textContent = 'Generate Message';
+    loader.classList.add('hidden');
+    dom.aiGenerateBtn.disabled = false;
+}
+
+
 async function handleImageSearch() {
     const query = dom.search.input.value;
     if (!query) return;
@@ -743,6 +805,7 @@ async function handleImageSearch() {
     dom.search.loader.style.display = 'flex';
     dom.search.resultsContainer.innerHTML = '';
     try {
+        // --- FIX: Use absolute URL for fetch ---
         const response = await fetch(`https://pixabay.com/api/?key=${postcardConfig.apiKeys.pixabayApiKey}&q=${encodeURIComponent(query)}&image_type=photo&per_page=21`);
         if (!response.ok) {
             throw new Error(`Pixabay API responded with status: ${response.status}`);
@@ -874,7 +937,8 @@ async function handleFinalSend() {
         const backPrintFilename = `${sanitizedEmail}-${sanitizedName}-${sanitizedPostcode}-back-print-${timestamp}.jpg`;
         const backEmailFilename = `${sanitizedEmail}-${sanitizedName}-${sanitizedPostcode}-back-email-${timestamp}.jpg`;
         const uploadAndGetData = async (filename, blob) => {
-            const response = await fetch(`/api/upload?filename=${filename}`, { method: 'POST', body: blob });
+            // --- FIX: Use absolute URL for fetch ---
+            const response = await fetch(new URL(`/api/upload?filename=${filename}`, window.location.origin), { method: 'POST', body: blob });
             if (!response.ok) {
                 const errorData = await response.json();
                 throw new Error(`Failed to upload ${filename}. Server responded with ${response.status}: ${errorData.details || errorData.error}`);
@@ -899,8 +963,9 @@ async function handleFinalSend() {
                 text: dom.textInput.value,
                 font: dom.fontSelect.value,
                 color: dom.colorPicker.value,
-                size: dom.fontSizeSlider.value,
-                weight: dom.fontWeightSlider.value
+                // --- NEW: Use fontSizeSelect and default weight ---
+                size: dom.fontSizeSelect.value,
+                weight: '400'
             }
         };
         localStorage.setItem('lastPostcardDesign', JSON.stringify(resendData));
@@ -915,14 +980,16 @@ async function handleFinalSend() {
             emailConfig: {
                 subject: postcardConfig.email.subject,
                 body: postcardConfig.email.body,
-                buttonColor: postcardConfig.styles.sendPostcardButtonColor, // Use style from config
-                buttonTextColor: postcardConfig.styles.sendPostcardButtonTextColor, // Use style from config
+                // --- NEW: Pass button colors for email ---
+                buttonColor: postcardConfig.styles.sendPostcardButtonColor,
+                buttonTextColor: postcardConfig.styles.sendPostcardButtonTextColor,
                 senderName: postcardConfig.email.senderName
             },
             recaptchaToken: recaptchaToken
         };
         
-        const verificationResponse = await fetch('/api/request-verification', {
+        // --- FIX: Use absolute URL for fetch ---
+        const verificationResponse = await fetch(new URL('/api/request-verification', window.location.origin), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ postcardData })
@@ -958,28 +1025,19 @@ const debouncedProfanityCheck = debounce(checkForProfanityAPI, 500);
 
 function initializePostcardCreator() {
     
-    if (!postcardConfig) {
-        // Config is still loading, wait a brief moment and retry
-        // This is a fallback for the preload script failing
-        console.warn("Config not ready, retrying initialization...");
-        setTimeout(initializePostcardCreator, 100);
-        return;
+    // --- NEW: Check for AI API key ---
+    // We can't check the key directly, but we can check if the config object
+    // for API keys exists. If not, hide the AI feature.
+    if (!postcardConfig.apiKeys) {
+        dom.aiAssistantContainer.classList.add('hidden');
     }
     
     if (!postcardConfig.apiKeys || !postcardConfig.apiKeys.recaptchaSiteKey) {
-        console.error("ReCAPTCHA site key is not configured. Postcard sending will be disabled.");
-        showGlobalError("Sending is currently disabled due to a configuration issue.");
-        dom.sendPostcardBtn.disabled = true;
-        dom.sendPostcardBtn.textContent = "Sending Disabled";
-        dom.sendPostcardBtn.classList.add('opacity-50', 'cursor-not-allowed');
-    }
-    
-    if (!postcardConfig.apiKeys || !postcardConfig.apiKeys.pixabayApiKey) {
-        console.warn("Pixabay API key is not configured. Image search will be disabled.");
+    console.warn("ReCAPTCHA key not configured - form validation may be limited");
         dom.findImageButton.disabled = true;
-        dom.findImageButton.classList.add('opacity-50', 'cursor-not-allowed');
+        dom.sendPostcardBtn.disabled = true;
+        return;
     }
-
 
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('sendAgain') === 'true') {
@@ -989,10 +1047,9 @@ function initializePostcardCreator() {
             dom.textInput.value = lastDesign.message.text;
             dom.fontSelect.value = lastDesign.message.font;
             dom.colorPicker.value = lastDesign.message.color;
-            dom.fontSizeSlider.value = lastDesign.message.size;
-            dom.fontSizeValue.textContent = lastDesign.message.size;
-            dom.fontWeightSlider.value = lastDesign.message.weight;
-            dom.fontWeightValue.textContent = lastDesign.message.weight;
+            // --- NEW: Use fontSizeSelect and default weight ---
+            dom.fontSizeSelect.value = lastDesign.message.size || '16'; // Default to 16 if not set
+            // (Weight is now hardcoded to 400)
             appState.frontText = lastDesign.frontText;
             appState.isPortrait = lastDesign.isPortrait || false;
             if (lastDesign.imageSrc) {
@@ -1195,11 +1252,11 @@ function initializePostcardCreator() {
             }
         });
     });
-    const messageControls = [dom.textInput, dom.fontSelect, dom.fontSizeSlider, dom.fontWeightSlider, dom.colorPicker];
+    // --- NEW: Updated message controls ---
+    const messageControls = [dom.textInput, dom.fontSelect, dom.fontSizeSelect, dom.colorPicker];
     messageControls.forEach(el => {
         el.addEventListener('input', () => {
-            if (el.id === 'font-size-slider') dom.fontSizeValue.textContent = el.value;
-            if (el.id === 'font-weight-slider') dom.fontWeightValue.textContent = el.value;
+            // (Removed logic for old sliders)
             checkMessageOverflow();
             debouncedProfanityCheck(dom.textInput.value, dom.messageProfanityWarning);
             debouncedUpdateAllPreviews();
@@ -1225,6 +1282,12 @@ function initializePostcardCreator() {
     dom.finalPreviewFront.addEventListener('click', () => { if (dom.finalPreviewFront.src) { dom.zoom.image.src = dom.finalPreviewFront.src; dom.zoom.modal.style.display = 'flex'; } });
     dom.finalPreviewBack.addEventListener('click', () => { if (dom.finalPreviewBack.src) { dom.zoom.image.src = dom.finalPreviewBack.src; dom.zoom.modal.style.display = 'flex'; } });
     dom.zoom.closeBtn.addEventListener('click', () => dom.zoom.modal.style.display = 'none');
+    
+    // --- NEW: Add listener for AI button ---
+    dom.aiGenerateBtn.addEventListener('click', handleAIAssist);
+    
     toggleAccordion(document.getElementById('accordion-header-5'), true);
     toggleAccordion(document.getElementById('accordion-header-1'), true);
 }
+
+
