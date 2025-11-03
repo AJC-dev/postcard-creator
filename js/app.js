@@ -164,8 +164,11 @@ function applyConfiguration() {
     dom.sendPostcardBtn.style.color = postcardConfig.styles.sendPostcardButtonTextColor;
     
     // --- NEW: AI Assist Button Style ---
-    dom.aiGenerateBtn.style.backgroundColor = postcardConfig.styles.uploadButtonColor;
-    dom.aiGenerateBtn.style.color = postcardConfig.styles.uploadButtonTextColor;
+    // Make sure aiGenerateBtn exists before styling it
+    if (dom.aiGenerateBtn) {
+        dom.aiGenerateBtn.style.backgroundColor = postcardConfig.styles.uploadButtonColor;
+        dom.aiGenerateBtn.style.color = postcardConfig.styles.uploadButtonTextColor;
+    }
 }
 
 async function checkForProfanityAPI(text, warningElement) {
@@ -711,8 +714,8 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
     const messageText = dom.textInput.value;
     const lines = messageText.split('\n');
     
-    // --- FIX: Nudge message 20px to the right ---
-    const messageX = 90; // Was 70
+    // --- FIX 3: Nudge message left by 15px ---
+    const messageX = 75; // Was 90
     
     let messageY = hiResFontSize * 1.2;
     const messageMaxWidth = dividerX - messageX - 20; // This compensates automatically
@@ -794,14 +797,14 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
 
     // Apply shadow and outline
     [frontCtx, backCtx].forEach(ctx => {
-        // --- FIX: Adjust shadow to be lighter, matching shadow-md ---
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.1)'; // Was 0.3
-        ctx.shadowBlur = 6; // Was 10
+        // --- FIX 2: Adjust shadow to be lighter, matching shadow-md ---
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.1)'; // Softer shadow color
+        ctx.shadowBlur = 6; // Softer blur
         ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 4;
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)'; // 1px outline
+        ctx.shadowOffsetY = 4; // Standard shadow-md offset
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)'; // 1px subtle outline
         ctx.lineWidth = 1;
-        // --- END FIX ---
+        // --- END FIX 2 ---
     });
 
     // Draw the temp canvases onto the final canvases (with padding)
@@ -1181,11 +1184,8 @@ const debouncedProfanityCheck = debounce(checkForProfanityAPI, 500);
 
 function initializePostcardCreator() {
     
-    // --- NEW: Check for AI API key ---
-    if (!postcardConfig.apiKeys || !postcardConfig.apiKeys.geminiApiKey) {
-        console.warn("Gemini API key not configured, hiding AI assistant.");
-        if(dom.aiAssistantContainer) dom.aiAssistantContainer.classList.add('hidden');
-    }
+    // --- FIX 1: Remove faulty client-side API key check ---
+    // The server will handle API key checks.
     
     if (!postcardConfig.apiKeys || !postcardConfig.apiKeys.recaptchaSiteKey) {
         console.warn("ReCAPTCHA key not configured, postcard sending will be disabled.");
