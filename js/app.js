@@ -769,6 +769,72 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
         // --- END FIX ---
     }
     
+    // --- NEW: Apply shadow and outline ONLY for email images ---
+    if (forEmail) {
+        // Define styles
+        const shadowBlur = 10;
+        const shadowColor = 'rgba(0, 0, 0, 0.2)';
+        const outlineColor = '#E5E7EB'; // A light gray (Tailwind gray-200)
+        const outlineWidth = 1;
+        
+        // Calculate padding needed to contain the shadow
+        const padding = shadowBlur + outlineWidth;
+
+        // --- 1. Process FRONT Canvas ---
+        const frontCanvasWithEffect = document.createElement('canvas');
+        frontCanvasWithEffect.width = frontCanvas.width + padding * 2;
+        frontCanvasWithEffect.height = frontCanvas.height + padding * 2;
+        const frontCtxEffect = frontCanvasWithEffect.getContext('2d');
+        
+        // Draw the shadow
+        frontCtxEffect.shadowBlur = shadowBlur;
+        frontCtxEffect.shadowColor = shadowColor;
+        // We fill a rect to *create* the shadow, but make it transparent
+        // so only the shadow is visible.
+        frontCtxEffect.fillStyle = 'rgba(255, 255, 255, 0)';
+        frontCtxEffect.fillRect(padding, padding, frontCanvas.width, frontCanvas.height);
+        
+        // Turn off shadow for next steps
+        frontCtxEffect.shadowColor = 'transparent';
+
+        // Draw the postcard image itself on top
+        frontCtxEffect.drawImage(frontCanvas, padding, padding);
+
+        // Draw the outline on top of the image
+        frontCtxEffect.strokeStyle = outlineColor;
+        frontCtxEffect.lineWidth = outlineWidth;
+        // Adjust strokeRect to perfectly align with the image edge
+        frontCtxEffect.strokeRect(padding - (outlineWidth / 2), padding - (outlineWidth / 2), frontCanvas.width + outlineWidth, frontCanvas.height + outlineWidth);
+
+        // --- 2. Process BACK Canvas ---
+        const backCanvasWithEffect = document.createElement('canvas');
+        backCanvasWithEffect.width = backCanvas.width + padding * 2;
+        backCanvasWithEffect.height = backCanvas.height + padding * 2;
+        const backCtxEffect = backCanvasWithEffect.getContext('2d');
+        
+        // Draw shadow
+        backCtxEffect.shadowBlur = shadowBlur;
+        backCtxEffect.shadowColor = shadowColor;
+        backCtxEffect.fillStyle = 'rgba(255, 255, 255, 0)';
+        backCtxEffect.fillRect(padding, padding, backCanvas.width, backCanvas.height);
+        
+        // Turn off shadow
+        backCtxEffect.shadowColor = 'transparent';
+
+        // Draw image
+        backCtxEffect.drawImage(backCanvas, padding, padding);
+        
+        // Draw outline
+        backCtxEffect.strokeStyle = outlineColor;
+        backCtxEffect.lineWidth = outlineWidth;
+        backCtxEffect.strokeRect(padding - (outlineWidth / 2), padding - (outlineWidth / 2), backCanvas.width + outlineWidth, backCanvas.height + outlineWidth);
+
+        // --- 3. Return the NEW, decorated canvases ---
+        return { frontCanvas: frontCanvasWithEffect, backCanvas: backCanvasWithEffect };
+    }
+    // --- END NEW LOGIC ---
+
+    // This is the original return for the PRINT API path (forEmail = false)
     return { frontCanvas, backCanvas };
 }
 
@@ -1354,6 +1420,7 @@ function initializePostcardCreator() {
     toggleAccordion(document.getElementById('accordion-header-5'), true);
     toggleAccordion(document.getElementById('accordion-header-1'), true);
 }
+
 
 
 
