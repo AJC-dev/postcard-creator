@@ -1,70 +1,4 @@
-// --- CONFIGURATION (Embedded to prevent import errors) ---
-const fallbackConfig = {
-    content: {
-        pageTitle: "SixStarCruises - Send Free Postcards",
-        faviconURL: "ssc_favicon.ico",
-        loadingImageURL: "https://i.gifer.com/ZZ5H.gif",
-        mainTitle: "Send holiday postcards home now.",
-        subtitleText: "Upload pics, add a message and we'll post them for you tomorrow. A free service from",
-        subtitleLinkText: "Six Star Cruises",
-        subtitleLinkURL: "https://www.sixstarcruises.co.uk/",
-        companyLogoURL: "" 
-    },
-    styles: {
-        titleColor: "#b9965b",
-        subtitleLinkColor: "#b9965b",
-        uploadButtonColor: "#b9965b",
-        uploadButtonTextColor: "#FFFFFF",
-        findImageButtonColor: "#212529",
-        findImageButtonTextColor: "#FFFFFF",
-        sendPostcardButtonColor: "#212529",
-        sendPostcardButtonTextColor: "#FFFFFF",
-    },
-    email: {
-        senderName: "Six Star Cruises",
-        subject: "Your Postcard Proof for {{recipientName}}",
-        body: "Hi {{senderName}}, here is the final proof of your postcard. Please click the link to confirm and send."
-    },
-    confirmationEmail: {
-        senderName: "Six Star Cruises Team",
-        subject: "Your Postcard to {{recipientName}} has been sent!",
-        body: "Hi {{senderName}}, thank you for using our service. Your postcard is on its way.",
-        promoText: "Savings Event: Book next year with savings of up to 40% and Free Business Class Flights",
-        promoLinkURL: "https://www.sixstarcruises.co.uk/",
-        promoImageURL: "sixstars.png"
-    },
-    successPage: {
-        pageTitle: "Postcard Sent!",
-        faviconURL: "ssc_favicon.ico",
-        heading: "Success!",
-        headingColor: "#0E0B3D",
-        subheading: "Hope you're having a great holiday.",
-        buttonText: "Send again, to someone else?",
-        buttonColor: "#212529",
-        buttonTextColor: "#FFFFFF",
-        promoText: "Savings Event: Book next year with savings of up to 40% and Free Business Class Flights",
-        promoLinkURL: "https://www.sixstarcruises.co.uk/",
-        promoImageURL: "sixstars.png"
-    },
-    postcardPromo: {
-        imageURL: ""
-    },
-    limits: {
-        postcardLimit: 5,
-        limitDays: 30
-    },
-    print: {
-        dpi: 300,
-        a5WidthMM: 210,
-        a5HeightMM: 148,
-        bleedMM: 3,
-        handleRadius: 8
-    },
-    validation: {
-        minImageDimension: 800,
-        maxFileSizeMB: 4
-    }
-};
+import fallbackConfig from './config.js';
 
 let postcardConfig; // Will be populated from DB or fallback
 let dom = {}; // To be populated with DOM references
@@ -202,22 +136,22 @@ function populateDomReferences() {
 
 async function loadConfigAndInitialize() {
     try {
-        // --- FIX: Use absolute URL for fetch ---
         const response = await fetch(new URL('/api/get-config', window.location.origin));
-        if (!response.ok) {
-             throw new Error('Could not fetch config from API');
-        }
+        if (!response.ok) throw new Error('Config fetch failed');
         postcardConfig = await response.json();
     } catch (error) {
         console.error("Could not fetch from DB, using local defaults.", error);
         postcardConfig = fallbackConfig;
-        postcardConfig.apiKeys = { recaptchaSiteKey: '', pixabayApiKey: '' }; 
+        if(postcardConfig) postcardConfig.apiKeys = { recaptchaSiteKey: '', pixabayApiKey: '' }; 
         showGlobalError("Could not load application configuration. Using offline defaults.");
     } finally {
         applyConfiguration();
         setupMobileInteractions(); 
-        dom.loadingOverlay.style.display = 'none';
-        // Ensure main content is available 
+        if(dom.loadingOverlay) dom.loadingOverlay.style.display = 'none';
+        // Use postcardStage parent to show workspace
+        if(dom.postcardStage && dom.postcardStage.parentElement) {
+             dom.postcardStage.parentElement.classList.remove('hidden');
+        }
         switchTab('photo'); 
         updatePostcardLayout();
         
@@ -230,17 +164,21 @@ async function loadConfigAndInitialize() {
 
 function setupMobileInteractions() {
     // 1. Tab Switching
-    dom.navItems.forEach(item => {
-        item.addEventListener('click', () => {
-            const tab = item.dataset.tab;
-            switchTab(tab);
+    if (dom.navItems) {
+        dom.navItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const tab = item.dataset.tab;
+                switchTab(tab);
+            });
         });
-    });
+    }
 
     // 2. Flip Button
-    dom.flipBtn.addEventListener('click', () => {
-        toggleFlip();
-    });
+    if (dom.flipBtn) {
+        dom.flipBtn.addEventListener('click', () => {
+            toggleFlip();
+        });
+    }
 
     // 3. Auto-update back preview on input
     const backInputs = [
@@ -248,18 +186,20 @@ function setupMobileInteractions() {
         ...Object.values(dom.addressInputs)
     ];
     backInputs.forEach(input => {
-        input.addEventListener('input', () => {
-            if (appState.isFlipped) drawBackPreview();
-            if (input === dom.textInput) {
-                debouncedProfanityCheck(dom.textInput.value, dom.messageProfanityWarning);
-                checkMessageOverflow();
-            }
-        });
+        if (input) {
+            input.addEventListener('input', () => {
+                if (appState.isFlipped) drawBackPreview();
+                if (input === dom.textInput) {
+                    debouncedProfanityCheck(dom.textInput.value, dom.messageProfanityWarning);
+                    checkMessageOverflow();
+                }
+            });
+        }
     });
 
     // 4. Core Listeners
     
-    // Image Uploader - ensure element exists
+    // Image Uploader
     if(dom.imageUploader) {
         dom.imageUploader.addEventListener('change', async (event) => {
             const file = event.target.files[0];
@@ -268,6 +208,7 @@ function setupMobileInteractions() {
             const reader = new FileReader();
             reader.onload = async (e) => {
                 let imageDataUrl = e.target.result;
+                // FIX: Check if config exists before accessing properties
                 if (postcardConfig && file.size > postcardConfig.validation.maxFileSizeMB * 1024 * 1024) {
                     imageDataUrl = await resizeImage(imageDataUrl);
                 }
@@ -282,50 +223,60 @@ function setupMobileInteractions() {
     // Search Buttons
     if(dom.toolSearchBtn) dom.toolSearchBtn.addEventListener('click', () => dom.search.modal.style.display = 'flex');
     if(dom.findImageButton) dom.findImageButton.addEventListener('click', () => dom.search.modal.style.display = 'flex');
-    dom.search.closeBtn.addEventListener('click', () => dom.search.modal.style.display = 'none');
-    dom.search.searchBtn.addEventListener('click', handleImageSearch);
-    dom.search.input.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleImageSearch(); });
+    if(dom.search.closeBtn) dom.search.closeBtn.addEventListener('click', () => dom.search.modal.style.display = 'none');
+    if(dom.search.searchBtn) dom.search.searchBtn.addEventListener('click', handleImageSearch);
+    if(dom.search.input) dom.search.input.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleImageSearch(); });
 
     // Front Text
-    dom.frontText.input.addEventListener('input', () => {
-        appState.frontText.text = dom.frontText.input.value;
-        if (appState.frontText.x === null) {
-            appState.frontText.x = dom.previewCanvas.el.width / 2;
-            appState.frontText.y = dom.previewCanvas.el.height / 2;
-        }
-        debouncedProfanityCheck(appState.frontText.text, dom.frontText.profanityWarning);
-        drawPreviewCanvas();
-    });
-    [dom.frontText.fontSelect, dom.frontText.colorPicker].forEach(el => {
-        el.addEventListener('input', () => {
-             appState.frontText.font = dom.frontText.fontSelect.value;
-             appState.frontText.color = dom.frontText.colorPicker.value;
-             drawPreviewCanvas();
+    if(dom.frontText.input) {
+        dom.frontText.input.addEventListener('input', () => {
+            appState.frontText.text = dom.frontText.input.value;
+            if (appState.frontText.x === null && dom.previewCanvas.el) {
+                appState.frontText.x = dom.previewCanvas.el.width / 2;
+                appState.frontText.y = dom.previewCanvas.el.height / 2;
+            }
+            debouncedProfanityCheck(appState.frontText.text, dom.frontText.profanityWarning);
+            drawPreviewCanvas();
         });
+    }
+    [dom.frontText.fontSelect, dom.frontText.colorPicker].forEach(el => {
+        if(el) {
+            el.addEventListener('input', () => {
+                 appState.frontText.font = dom.frontText.fontSelect.value;
+                 appState.frontText.color = dom.frontText.colorPicker.value;
+                 drawPreviewCanvas();
+            });
+        }
     });
-    dom.frontText.clearBtn.addEventListener('click', () => {
-        dom.frontText.input.value = '';
-        appState.frontText.text = '';
-        drawPreviewCanvas();
-    });
+    if(dom.frontText.clearBtn) {
+        dom.frontText.clearBtn.addEventListener('click', () => {
+            dom.frontText.input.value = '';
+            appState.frontText.text = '';
+            drawPreviewCanvas();
+        });
+    }
 
     // Message Controls (Sync with preview)
     [dom.fontSelect, dom.fontSizeSelect, dom.colorPicker].forEach(el => {
-        el.addEventListener('input', () => {
-             if (appState.isFlipped) drawBackPreview();
-        });
+        if(el) {
+            el.addEventListener('input', () => {
+                 if (appState.isFlipped) drawBackPreview();
+            });
+        }
     });
 
     // Send Button
-    dom.sendPostcardBtn.addEventListener('click', handleSendPostcard);
+    if(dom.sendPostcardBtn) dom.sendPostcardBtn.addEventListener('click', handleSendPostcard);
     
     // Sender Modal
-    dom.sender.sendBtn.addEventListener('click', handleFinalSend);
-    dom.sender.closeBtn.addEventListener('click', () => {
-        dom.sender.modal.style.display = 'none';
-        dom.sender.detailsView.style.display = 'flex'; 
-        dom.sender.checkEmailView.style.display = 'none';
-    });
+    if(dom.sender.sendBtn) dom.sender.sendBtn.addEventListener('click', handleFinalSend);
+    if(dom.sender.closeBtn) {
+        dom.sender.closeBtn.addEventListener('click', () => {
+            dom.sender.modal.style.display = 'none';
+            dom.sender.detailsView.style.display = 'flex'; 
+            dom.sender.checkEmailView.style.display = 'none';
+        });
+    }
 
     // AI Button
     if(dom.aiGenerateBtn) {
@@ -333,38 +284,46 @@ function setupMobileInteractions() {
     }
 
     // Zoom Controls
-    dom.deleteImageBtn.addEventListener('click', resetImagePreviews);
-    dom.zoomInBtn.addEventListener('click', () => {
-        appState.imageZoom += 0.1;
-        drawPreviewCanvas();
-    });
-    dom.zoomOutBtn.addEventListener('click', () => {
-        appState.imageZoom = Math.max(1.0, appState.imageZoom - 0.1);
-        drawPreviewCanvas();
-    });
+    if(dom.deleteImageBtn) dom.deleteImageBtn.addEventListener('click', resetImagePreviews);
+    if(dom.zoomInBtn) {
+        dom.zoomInBtn.addEventListener('click', () => {
+            appState.imageZoom += 0.1;
+            drawPreviewCanvas();
+        });
+    }
+    if(dom.zoomOutBtn) {
+        dom.zoomOutBtn.addEventListener('click', () => {
+            appState.imageZoom = Math.max(1.0, appState.imageZoom - 0.1);
+            drawPreviewCanvas();
+        });
+    }
 
     // Canvas Interactions
-    const canvas = dom.previewCanvas.el;
-    canvas.addEventListener('mousedown', handleInteractionStart);
-    canvas.addEventListener('mousemove', handleInteractionMove);
-    document.addEventListener('mouseup', handleInteractionEnd);
-    canvas.addEventListener('touchstart', handleInteractionStart);
-    canvas.addEventListener('touchmove', handleInteractionMove);
-    canvas.addEventListener('touchend', handleInteractionEnd);
+    if(dom.previewCanvas.el) {
+        const canvas = dom.previewCanvas.el;
+        canvas.addEventListener('mousedown', handleInteractionStart);
+        canvas.addEventListener('mousemove', handleInteractionMove);
+        document.addEventListener('mouseup', handleInteractionEnd);
+        canvas.addEventListener('touchstart', handleInteractionStart);
+        canvas.addEventListener('touchmove', handleInteractionMove);
+        canvas.addEventListener('touchend', handleInteractionEnd);
+    }
 }
 
 function switchTab(tabName) {
     appState.activeTab = tabName;
 
-    dom.navItems.forEach(item => {
-        if (item.dataset.tab === tabName) {
-            item.classList.add('text-blue-600');
-            item.classList.remove('text-gray-400');
-        } else {
-            item.classList.remove('text-blue-600');
-            item.classList.add('text-gray-400');
-        }
-    });
+    if (dom.navItems) {
+        dom.navItems.forEach(item => {
+            if (item.dataset.tab === tabName) {
+                item.classList.add('text-blue-600');
+                item.classList.remove('text-gray-400');
+            } else {
+                item.classList.remove('text-blue-600');
+                item.classList.add('text-gray-400');
+            }
+        });
+    }
 
     Object.values(dom.panels).forEach(panel => {
         if(panel) panel.classList.remove('active');
@@ -378,7 +337,11 @@ function switchTab(tabName) {
     }
 }
 
+// --- DEFINED FUNCTIONS (Hoisted) ---
+
 function toggleFlip(forceState = null) {
+    if (!dom.postcardStage) return;
+
     const newState = forceState !== null ? forceState : !appState.isFlipped;
     appState.isFlipped = newState;
 
@@ -427,8 +390,8 @@ function toggleFlip(forceState = null) {
 }
 
 function drawBackPreview() {
+    if (!dom.backPreviewCanvas || !dom.backPreviewCanvas.el) return;
     const canvas = dom.backPreviewCanvas.el;
-    if (!canvas) return;
 
     if (canvas.width !== dom.previewCanvas.el.width || canvas.height !== dom.previewCanvas.el.height) {
         canvas.width = dom.previewCanvas.el.width;
@@ -461,7 +424,6 @@ function drawBackPreview() {
 
     // Message
     const fontSizeVal = parseInt(dom.fontSizeSelect.value) || 16;
-    // Scale font size relative to canvas width
     const scaleFactor = width / 1200; 
     const fontSize = fontSizeVal * 2.5 * scaleFactor + 10; 
 
@@ -473,7 +435,6 @@ function drawBackPreview() {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
 
-    // Use relative positioning based on canvas size
     const messageX = width * 0.08; 
     const messageY = height * 0.08;
     const messageWidth = dividerX - messageX - (20 * scaleFactor);
@@ -531,44 +492,37 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
 }
 
 function showGlobalError(message) {
-    dom.errorBannerMessage.textContent = message;
-    dom.errorBanner.classList.remove('hidden');
-    setTimeout(() => dom.errorBanner.classList.add('hidden'), 5000);
+    if(dom.errorBannerMessage) {
+        dom.errorBannerMessage.textContent = message;
+        dom.errorBanner.classList.remove('hidden');
+        setTimeout(() => dom.errorBanner.classList.add('hidden'), 5000);
+    }
 }
 
 function applyConfiguration() {
-    // This function applies config to the page
-    // Note: Favicon and Page Title are handled by the preload script
+    if (!postcardConfig) return;
+
+    document.title = postcardConfig.content.pageTitle;
+    if(dom.favicon) dom.favicon.href = postcardConfig.content.faviconURL;
+    if(dom.loadingImage) dom.loadingImage.src = postcardConfig.content.loadingImageURL;
     
-    // --- NEW: Company Logo ---
     if (postcardConfig.content.companyLogoURL) {
         dom.companyLogo.src = postcardConfig.content.companyLogoURL;
         dom.companyLogo.classList.remove('hidden');
-    } else {
-        dom.companyLogo.classList.add('hidden');
     }
     
-    dom.loadingImage.src = postcardConfig.content.loadingImageURL;
-    dom.mainTitle.textContent = postcardConfig.content.mainTitle;
-    dom.mainTitle.style.color = postcardConfig.styles.titleColor;
-
-    // Apply button styles
-    dom.uploadButton.style.backgroundColor = postcardConfig.styles.uploadButtonColor;
-    dom.uploadButton.style.color = postcardConfig.styles.uploadButtonTextColor;
-    dom.findImageButton.style.backgroundColor = postcardConfig.styles.findImageButtonColor;
-    dom.findImageButton.style.color = postcardConfig.styles.findImageButtonTextColor;
-    dom.sendPostcardBtn.style.backgroundColor = postcardConfig.styles.sendPostcardButtonColor;
-    dom.sendPostcardBtn.style.color = postcardConfig.styles.sendPostcardButtonTextColor;
+    if(dom.mainTitle) {
+        dom.mainTitle.textContent = postcardConfig.content.mainTitle;
+        dom.mainTitle.style.color = postcardConfig.styles.titleColor;
+    }
     
-    // --- NEW: AI Assist Button Style ---
-    // Make sure aiGenerateBtn exists before styling it
-    if (dom.aiGenerateBtn) {
+    if(dom.aiGenerateBtn) {
         dom.aiGenerateBtn.style.backgroundColor = postcardConfig.styles.uploadButtonColor;
         dom.aiGenerateBtn.style.color = postcardConfig.styles.uploadButtonTextColor;
     }
 }
 
-// --- CORE HELPER FUNCTIONS ---
+// --- HELPER FUNCTIONS ---
 
 function debounce(func, delay) {
     let timeout;
@@ -582,7 +536,7 @@ const debouncedProfanityCheck = debounce(checkForProfanityAPI, 500);
 
 async function checkForProfanityAPI(text, warningElement) {
     if (!text.trim()) {
-        warningElement.classList.add('hidden');
+        if(warningElement) warningElement.classList.add('hidden');
         return false;
     }
     try {
@@ -594,11 +548,13 @@ async function checkForProfanityAPI(text, warningElement) {
         if (!response.ok) return false; 
         const result = await response.json();
         if (result.isProfanity) {
-            warningElement.textContent = "Be more friendly - consider revising the text";
-            warningElement.classList.remove('hidden');
+            if(warningElement) {
+                warningElement.textContent = "Be more friendly - consider revising the text";
+                warningElement.classList.remove('hidden');
+            }
             return true;
         } else {
-            warningElement.classList.add('hidden');
+            if(warningElement) warningElement.classList.add('hidden');
             return false;
         }
     } catch (error) {
@@ -792,25 +748,21 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
     let finalWidthPx, finalHeightPx;
 
     if (forEmail) {
-        // --- NEW: Add padding for email shadow/outline ---
         const previewBaseWidth = 1200;
-        const padding = 20; // 20px padding for shadow
+        const padding = 20; 
         finalWidthPx = previewBaseWidth + padding * 2;
         finalHeightPx = Math.round(previewBaseWidth / A5_RATIO) + padding * 2;
-        // --- END NEW ---
     } else {
         const coreWidthPx = Math.round((a5WidthMM / MM_TO_INCH) * dpi);
         const coreHeightPx = Math.round((a5HeightMM / MM_TO_INCH) * dpi);
-        // Always use landscape dimensions for print
         finalWidthPx = coreWidthPx + (bleedPxForPrint * 2);
         finalHeightPx = coreHeightPx + (bleedPxForPrint * 2);
     }
     
-    // --- FRONT CANVAS (Core Drawing) ---
-    // Create a temporary canvas at the *actual* postcard size (with bleed if for print)
+    // Front
     const tempFrontCanvas = document.createElement('canvas');
-    const tempFrontWidth = forEmail ? finalWidthPx - 40 : finalWidthPx; // Subtract email padding
-    const tempFrontHeight = forEmail ? finalHeightPx - 40 : finalHeightPx; // Subtract email padding
+    const tempFrontWidth = forEmail ? finalWidthPx - 40 : finalWidthPx; 
+    const tempFrontHeight = forEmail ? finalHeightPx - 40 : finalHeightPx; 
     tempFrontCanvas.width = tempFrontWidth;
     tempFrontCanvas.height = tempFrontHeight;
     const tempFrontCtx = tempFrontCanvas.getContext('2d');
@@ -831,420 +783,246 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
         tempFrontCtx.fillRect(0, 0, tempFrontWidth, tempFrontHeight);
     }
 
-    // --- BACK CANVAS (Core Drawing) ---
+    // Back
     const tempBackCanvas = document.createElement('canvas');
     const mainContentWidthPx = forEmail ? finalWidthPx - 40 : Math.round((a5WidthMM / MM_TO_INCH) * dpi);
     const mainContentHeightPx = forEmail ? finalHeightPx - 40 : Math.round((a5HeightMM / MM_TO_INCH) * dpi);
     tempBackCanvas.width = mainContentWidthPx;
     tempBackCanvas.height = mainContentHeightPx;
     const tempBackCtx = tempBackCanvas.getContext('2d');
+    
+    // Draw Back Content
     tempBackCtx.fillStyle = 'white';
     tempBackCtx.fillRect(0, 0, mainContentWidthPx, mainContentHeightPx);
+    
+    // Divider
     tempBackCtx.strokeStyle = '#e5e7eb';
     tempBackCtx.lineWidth = 5;
     tempBackCtx.beginPath();
-    const dividerX = (mainContentWidthPx / 2) + 170;
+    const dividerX = mainContentWidthPx * 0.58;
     tempBackCtx.moveTo(dividerX, 50);
     tempBackCtx.lineTo(dividerX, mainContentHeightPx - 50);
     tempBackCtx.stroke();
-    tempBackCtx.strokeStyle = '#cccccc';
-    tempBackCtx.lineWidth = 5;
-    tempBackCtx.setLineDash([15, 15]);
-    tempBackCtx.strokeRect(mainContentWidthPx - 300, 50, 250, 250);
-    tempBackCtx.setLineDash([]);
     
+    // Text
     const fontSize = dom.fontSizeSelect.value;
     const fontWeight = '400';
-    const hiResFontSize = fontSize * (mainContentWidthPx / 504) * 1.2;
+    const hiResFontSize = fontSize * (mainContentWidthPx / 504) * 1.2; // scaling factor
     const fontFamily = dom.fontSelect.value;
     tempBackCtx.fillStyle = dom.colorPicker.value;
     tempBackCtx.font = `${fontWeight} ${hiResFontSize}px ${fontFamily}`;
     tempBackCtx.textAlign = 'left';
     tempBackCtx.textBaseline = 'top';
-    const messageText = dom.textInput.value;
-    const lines = messageText.split('\n');
     
-    // --- FIX 3: Nudge message left by 25px (total 50px) ---
-    const messageX = 50; // Was 75
-    
-    let messageY = hiResFontSize * 1.2;
-    const messageMaxWidth = dividerX - messageX - 20; // This compensates automatically
+    // Message Nudge 50px
+    const resolutionScale = mainContentWidthPx / 1200; 
+    const messageX = 50 * resolutionScale * 2; 
     const lineHeight = hiResFontSize * 1.2;
-    lines.forEach(line => {
-        const words = line.split(' ');
-        let currentLine = '';
-        for (let i = 0; i < words.length; i++) {
-            const testLine = currentLine + words[i] + ' ';
-            const metrics = tempBackCtx.measureText(testLine);
-            if (metrics.width > messageMaxWidth && i > 0) {
-                tempBackCtx.fillText(currentLine, messageX, messageY);
-                messageY += lineHeight;
-                currentLine = words[i] + ' ';
-            } else {
-                currentLine = testLine;
-            }
-        }
-        tempBackCtx.fillText(currentLine, messageX, messageY);
-        messageY += lineHeight;
-    });
+    const messageMaxWidth = dividerX - messageX - 20;
     
+    wrapText(tempBackCtx, dom.textInput.value, messageX, hiResFontSize, messageMaxWidth, lineHeight);
+
     if (includeAddressOnBack) {
-        const hiResAddressFontSize = 12 * (mainContentWidthPx / 504) * 1.2;
-        tempBackCtx.fillStyle = '#333';
-        tempBackCtx.font = `400 ${hiResAddressFontSize}px Inter`;
-        tempBackCtx.textAlign = 'left';
-
-        // --- NEW: Address Wrapping Logic ---
-        const addressLines = [
-            dom.addressInputs.name.value, 
-            dom.addressInputs.line1.value, 
-            dom.addressInputs.line2.value, 
-            dom.addressInputs.city.value, 
-            dom.addressInputs.postcode.value
-        ].filter(Boolean); // Get all non-empty lines
-        
-        const addressBlockHeight = addressLines.length * hiResAddressFontSize * 1.4; // Initial estimate
-        const addressX = dividerX + 20;
-        let addressY = (mainContentHeightPx / 2) - (addressBlockHeight / 2); // Start Y
-        const addressLineHeight = hiResAddressFontSize * 1.4;
-        const addressMaxWidth = mainContentWidthPx - addressX - 20; // Max width for address
-
-        const allWrappedLines = [];
-        addressLines.forEach(line => {
-            // Wrap each line based on pixel width, not char count, for accuracy
-            const wrapped = wrapAddressLine(tempBackCtx, line, addressMaxWidth);
-            allWrappedLines.push(...wrapped);
-        });
-
-        // Re-calculate vertical centering based on the *actual* number of lines
-        const finalAddressBlockHeight = allWrappedLines.length * addressLineHeight;
-        addressY = (mainContentHeightPx / 2) - (finalAddressBlockHeight / 2);
-
-        allWrappedLines.forEach(line => {
-            tempBackCtx.fillText(line, addressX, addressY);
-            addressY += addressLineHeight;
-        });
-        // --- END NEW: Address Wrapping ---
+         const hiResAddressFontSize = 12 * (mainContentWidthPx / 504) * 1.2;
+         tempBackCtx.fillStyle = '#333';
+         tempBackCtx.font = `400 ${hiResAddressFontSize}px Inter`;
+         const addressLines = [dom.addressInputs.name.value, dom.addressInputs.line1.value, dom.addressInputs.line2.value, dom.addressInputs.city.value, dom.addressInputs.postcode.value].filter(Boolean);
+         const addrX = dividerX + 20;
+         const addrLineHeight = hiResAddressFontSize * 1.4;
+         let addrY = (mainContentHeightPx / 2) - ((addressLines.length * addrLineHeight) / 2);
+         
+         addressLines.forEach(line => {
+             tempBackCtx.fillText(line, addrX, addrY);
+             addrY += addrLineHeight;
+         });
     }
-    
-    // --- FINAL CANVAS PREPARATION ---
-    
-    // If for print, return the raw, unstyled canvases
+
     if (!forEmail) {
         return { frontCanvas: tempFrontCanvas, backCanvas: tempBackCanvas };
     }
 
-    // --- NEW: If for email, create new canvases and add shadow/outline ---
+    // Email Composition
     const frontCanvas = document.createElement('canvas');
     frontCanvas.width = finalWidthPx;
     frontCanvas.height = finalHeightPx;
     const frontCtx = frontCanvas.getContext('2d');
     
     const backCanvas = document.createElement('canvas');
-    backCanvas.width = finalWidthPx; // Back canvas for email has same outer dims
+    backCanvas.width = finalWidthPx; 
     backCanvas.height = finalHeightPx;
     const backCtx = backCanvas.getContext('2d');
 
-    // Apply shadow and outline
     [frontCtx, backCtx].forEach(ctx => {
-        // --- FIX 2: Soft shadow only, no outline ---
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.1)'; // Softer shadow color
-        ctx.shadowBlur = 6; // Softer blur
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
+        ctx.shadowBlur = 6;
         ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 4; // Standard shadow-md offset
-        // (Removed strokeStyle and lineWidth)
-        // --- END FIX 2 ---
+        ctx.shadowOffsetY = 4;
     });
 
-    // Draw the temp canvases onto the final canvases (with padding)
     const padding = 20;
     frontCtx.drawImage(tempFrontCanvas, padding, padding);
-    // frontCtx.strokeRect(padding, padding, tempFrontWidth, tempFrontHeight); // <-- FIX 2: Removed outline
     
-    // The back canvas for email needs to be drawn relative to the front
     const backRatio = tempBackCanvas.width / tempBackCanvas.height;
     const backHeight = tempFrontHeight;
     const backWidth = backHeight * backRatio;
     const backX = (finalWidthPx - backWidth) / 2;
     const backY = padding;
-    
     backCtx.drawImage(tempBackCanvas, backX, backY, backWidth, backHeight);
-    // backCtx.strokeRect(backX, backY, backWidth, backHeight); // <-- FIX 2: Removed outline
     
     return { frontCanvas, backCanvas };
 }
 
-async function handleSendPostcard() {
-     const required = ['name', 'line1', 'city', 'postcode'];
-     const valid = required.every(f => dom.addressInputs[f].value.trim());
-     if (!valid) {
-         // --- FIX: Use custom modal, not alert ---
-         showGlobalError('Please fill in all required recipient address fields.');
-         const firstEmpty = requiredAddressFields.find(input => input.value.trim() === '');
-         if (firstEmpty) {
-            //  toggleAccordion(document.getElementById('accordion-header-4'), true); // Open address accordion
-             firstEmpty.focus();
-         }
-         return;
-     }
-     const frontIsProfane = await checkForProfanityAPI(dom.frontText.input.value, dom.frontText.profanityWarning);
-     const backIsProfane = await checkForProfanityAPI(dom.textInput.value, dom.messageProfanityWarning);
-     if (frontIsProfane || backIsProfane) {
-         // --- FIX: Use custom modal, not alert ---
-         showGlobalError("Be more friendly - consider revising the text.");
-         return;
-     }
-     dom.sender.modal.style.display = 'flex';
-     if (typeof grecaptcha !== 'undefined' && dom.sender.recaptchaContainer.innerHTML === '') {
-         grecaptcha.render(dom.sender.recaptchaContainer, { 'sitekey' : postcardConfig.apiKeys.recaptchaSiteKey });
-     }
-}
-
-async function handleFinalSend() {
-    const senderName = dom.sender.nameInput.value;
-    const senderEmail = dom.sender.emailInput.value;
-    const recaptchaToken = grecaptcha.getResponse();
-    if (!senderName.trim() || !senderEmail.trim()) {
-        dom.sender.errorMessage.textContent = 'Please enter your name and email address.';
-        dom.sender.errorMessage.classList.remove('hidden');
-        return;
-    }
-    if (!recaptchaToken) {
-        dom.sender.errorMessage.textContent = 'Please complete the reCAPTCHA verification.';
-        dom.sender.errorMessage.classList.remove('hidden');
-        return;
-    }
-    localStorage.setItem('senderName', senderName);
-    localStorage.setItem('senderEmail', senderEmail);
-    const btnText = dom.sender.sendBtn.querySelector('.btn-text');
-    btnText.style.display = 'none';
-    const loader = document.createElement('div');
-    loader.className = 'loader';
-    dom.sender.sendBtn.prepend(loader);
-    dom.sender.sendBtn.disabled = true;
-    dom.sender.errorMessage.classList.add('hidden');
+async function handleAIAssist() {
+    const recipient = dom.aiRecipient.value;
+    const topic = dom.aiTopic.value;
+    const tone = dom.aiTone.value;
+    
+    dom.aiGenerateBtn.disabled = true;
+    dom.aiGenerateBtn.querySelector('.btn-text').textContent = '...';
+    
     try {
-        const { frontCanvas: frontCanvasForPrint, backCanvas: backCanvasForPrintNoAddress } = await generatePostcardImages({ forEmail: false, includeAddressOnBack: false });
-        
-        // --- START: Create LOW-RESOLUTION versions for email ---
-        const createLowResCanvas = (sourceCanvas, maxWidth = 400) => {
-            const scale = maxWidth / sourceCanvas.width;
-            const newWidth = sourceCanvas.width * scale;
-            const newHeight = sourceCanvas.height * scale;
-            const lowResCanvas = document.createElement('canvas');
-            lowResCanvas.width = newWidth;
-            lowResCanvas.height = newHeight;
-            const ctx = lowResCanvas.getContext('2d');
-            ctx.drawImage(sourceCanvas, 0, 0, newWidth, newHeight);
-            return lowResCanvas;
-        };
-
-        // --- FIX: Generate *email* images (with shadow) and then resize them ---
-        const { frontCanvas: highResEmailFrontCanvas, backCanvas: highResEmailBackCanvas } = await generatePostcardImages({ forEmail: true, includeAddressOnBack: true });
-        const lowResFrontCanvasForEmail = createLowResCanvas(highResEmailFrontCanvas);
-        const lowResBackCanvasForEmail = createLowResCanvas(highResEmailBackCanvas);
-        // --- END FIX ---
-
-
-        const frontBlobForPrint = await new Promise(resolve => frontCanvasForPrint.toBlob(resolve, 'image/jpeg', 0.9));
-        const frontBlobForEmail = await new Promise(resolve => lowResFrontCanvasForEmail.toBlob(resolve, 'image/jpeg', 0.8));
-        const backBlobForPrint = await new Promise(resolve => backCanvasForPrintNoAddress.toBlob(resolve, 'image/jpeg', 0.9));
-        const backBlobForEmail = await new Promise(resolve => lowResBackCanvasForEmail.toBlob(resolve, 'image/jpeg', 0.8));
-        
-        const sanitizedEmail = senderEmail.replace(/[^a-z0-9]/gi, '-');
-        const sanitizedName = senderName.replace(/[^a-z0-9]/gi, '-');
-        const sanitizedPostcode = dom.addressInputs.postcode.value.replace(/[^a-z0-9]/gi, '-');
-        const timestamp = Date.now();
-        const frontPrintFilename = `${sanitizedEmail}-${sanitizedName}-${sanitizedPostcode}-front-print-${timestamp}.jpg`;
-        const frontEmailFilename = `${sanitizedEmail}-${sanitizedName}-${sanitizedPostcode}-front-email-${timestamp}.jpg`;
-        const backPrintFilename = `${sanitizedEmail}-${sanitizedName}-${sanitizedPostcode}-back-print-${timestamp}.jpg`;
-        const backEmailFilename = `${sanitizedEmail}-${sanitizedName}-${sanitizedPostcode}-back-email-${timestamp}.jpg`;
-        
-        const uploadAndGetData = async (filename, blob) => {
-            // --- FIX: Use absolute URL for fetch ---
-            const response = await fetch(new URL(`/api/upload?filename=${filename}`, window.location.origin), { method: 'POST', body: blob });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(`Failed to upload ${filename}. Server responded with ${response.status}: ${errorData.details || errorData.error}`);
-            }
-            return response.json();
-        };
-        const [frontEmailBlobData, backEmailBlobData] = await Promise.all([
-            uploadAndGetData(frontEmailFilename, frontBlobForEmail),
-            uploadAndGetData(backEmailFilename, backBlobForEmail)
-        ]);
-        const frontPrintBlobData = await uploadAndGetData(frontPrintFilename, frontBlobForPrint);
-        const backPrintBlobData = await uploadAndGetData(backPrintFilename, backBlobForPrint);
-        const recipient = {};
-        for (const key in dom.addressInputs) {
-            recipient[key] = dom.addressInputs[key].value.trim();
-        }
-        const resendData = {
-            imageSrc: appState.imageSrcForResend,
-            isPortrait: appState.isPortrait,
-            frontText: appState.frontText,
-            message: {
-                text: dom.textInput.value,
-                font: dom.fontSelect.value,
-                color: dom.colorPicker.value,
-                // --- NEW: Use fontSizeSelect and default weight ---
-                size: dom.fontSizeSelect.value,
-                weight: '400'
-            }
-        };
-        localStorage.setItem('lastPostcardDesign', JSON.stringify(resendData));
-        
-        const postcardData = {
-            sender: { name: senderName, email: senderEmail },
-            recipient: recipient,
-            frontImageUrl: frontPrintBlobData.url,
-            frontImageUrlForEmail: frontEmailBlobData.url,
-            backImageUrl: backPrintBlobData.url, 
-            backImageUrlWithAddress: backEmailBlobData.url, // This is the low-res one
-            emailConfig: {
-                subject: postcardConfig.email.subject,
-                body: postcardConfig.email.body,
-                // --- NEW: Pass button colors for email ---
-                buttonColor: postcardConfig.styles.sendPostcardButtonColor,
-                buttonTextColor: postcardConfig.styles.sendPostcardButtonTextColor,
-                senderName: postcardConfig.email.senderName
-            },
-            recaptchaToken: recaptchaToken
-        };
-        
-        // --- FIX: Use absolute URL for fetch ---
-        const verificationResponse = await fetch(new URL('/api/request-verification', window.location.origin), {
+        const response = await fetch(new URL('/api/generate-message', window.location.origin), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ postcardData })
+            body: JSON.stringify({ recipient, topic, tone })
         });
-        if (!verificationResponse.ok) {
-            const errorResult = await verificationResponse.json();
-            throw new Error(errorResult.message || 'Failed to send verification email.');
+        const data = await response.json();
+        if (data.message) {
+            dom.textInput.value = data.message;
+            drawBackPreview(); // update preview
         }
-        dom.sender.detailsView.style.display = 'none';
-        dom.sender.checkEmailView.style.display = 'flex';
-    } catch (error) {
-        console.error('An error occurred during the final send process:', error);
-        dom.sender.errorMessage.textContent = error.message || 'An unknown error occurred. Please try again.';
-        dom.sender.errorMessage.classList.remove('hidden');
-        btnText.style.display = 'inline';
-        if(loader.parentNode) loader.remove();
-        dom.sender.sendBtn.disabled = false;
-        grecaptcha.reset();
+    } catch (e) {
+        console.error(e);
+        alert("AI Failed");
+    } finally {
+        dom.aiGenerateBtn.disabled = false;
+        dom.aiGenerateBtn.querySelector('.btn-text').textContent = 'Write for me';
     }
 }
 
-function debounce(func, delay) {
-    let timeout;
-    return function(...args) {
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func.apply(this, args), delay);
-    };
+function loadLastDesign() {
+    const lastDesign = JSON.parse(localStorage.getItem('lastPostcardDesign'));
+    if (lastDesign) {
+        dom.frontText.input.value = lastDesign.frontText.text;
+        dom.textInput.value = lastDesign.message.text;
+        dom.fontSelect.value = lastDesign.message.font;
+        dom.colorPicker.value = lastDesign.message.color;
+        dom.fontSizeSelect.value = lastDesign.message.size || '16';
+        
+        appState.frontText = lastDesign.frontText;
+        appState.isPortrait = lastDesign.isPortrait || false;
+        
+        if (lastDesign.imageSrc) {
+            validateAndSetImage(lastDesign.imageSrc);
+        }
+        switchTab('message'); 
+    }
 }
 
-const debouncedUpdateAllPreviews = debounce(updateFinalPreviews, 300);
-const debouncedProfanityCheck = debounce(checkForProfanityAPI, 500);
+function checkMessageOverflow() {
+    // Placeholder for overflow check logic if needed
+}
 
-
-function initializePostcardCreator() {
-    
-    // --- FIX 1: Remove faulty client-side API key check ---
-    // The server will handle API key checks.
-    
-    if (!postcardConfig.apiKeys || !postcardConfig.apiKeys.recaptchaSiteKey) {
-        console.warn("ReCAPTCHA key not configured, postcard sending will be disabled.");
-        if(dom.sendPostcardBtn) dom.sendPostcardBtn.disabled = true;
+async function handleImageSearch() {
+    const query = dom.search.input.value;
+    if (!query) return;
+    if (!postcardConfig.apiKeys.pixabayApiKey) {
+        console.error("Pixabay API Key not available.");
+        return;
     }
-    
-    if (!postcardConfig.apiKeys || !postcardConfig.apiKeys.pixabayApiKey) {
-        console.warn("Pixabay API key not configured, image search will be disabled.");
-        if(dom.findImageButton) dom.findImageButton.disabled = true;
-    }
-
-
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('sendAgain') === 'true') {
-        const lastDesign = JSON.parse(localStorage.getItem('lastPostcardDesign'));
-        if (lastDesign) {
-            dom.frontText.input.value = lastDesign.frontText.text;
-            dom.textInput.value = lastDesign.message.text;
-            dom.fontSelect.value = lastDesign.message.font;
-            dom.colorPicker.value = lastDesign.message.color;
-            // --- NEW: Use fontSizeSelect and default weight ---
-            dom.fontSizeSelect.value = lastDesign.message.size || '16'; // Default to 16 if not set
-            // (Weight is now hardcoded to 400)
-            appState.frontText = lastDesign.frontText;
-            appState.isPortrait = lastDesign.isPortrait || false;
-            if (lastDesign.imageSrc) {
-                validateAndSetImage(lastDesign.imageSrc);
-            }
-            // toggleAccordion(document.getElementById('accordion-header-3'), true); // NO LONGER NEEDED
-            if(dom.addressInputs.name) dom.addressInputs.name.focus();
-        }
-    }
-    // Accordion logic removed
-    // dom.accordionHeaders.forEach...
-    
-    if(dom.imageUploader) {
-        dom.imageUploader.addEventListener('change', async (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
-            event.target.value = '';
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                let imageDataUrl = e.target.result;
-                if (file.size > postcardConfig.validation.maxFileSizeMB * 1024 * 1024) {
-                    imageDataUrl = await resizeImage(imageDataUrl);
-                }
-                validateAndSetImage(imageDataUrl);
-            };
-            reader.readAsDataURL(file);
-        });
-    }
-    
-    if(dom.deleteImageBtn) dom.deleteImageBtn.addEventListener('click', resetImagePreviews);
-    if(dom.zoomInBtn) dom.zoomInBtn.addEventListener('click', () => {
-        appState.imageZoom += 0.1;
-        drawPreviewCanvas();
-        debouncedUpdateAllPreviews();
-    });
-    if(dom.zoomOutBtn) dom.zoomOutBtn.addEventListener('click', () => {
-        appState.imageZoom = Math.max(1.0, appState.imageZoom - 0.1);
-        drawPreviewCanvas();
-        debouncedUpdateAllPreviews();
-    });
-    Object.values(dom.frontText).forEach(el => {
-        if(el && (el.tagName === 'INPUT' || el.tagName === 'SELECT')) {
-            el.addEventListener('input', () => {
-                const wasEmpty = !appState.frontText.text;
-                appState.frontText.text = dom.frontText.input.value;
-                appState.frontText.font = dom.frontText.fontSelect.value;
-                appState.frontText.color = dom.frontText.colorPicker.value;
-                // No ticks logic needed
-                if (wasEmpty && appState.frontText.text && dom.previewCanvas.el.width > 0) {
-                    appState.frontText.x = dom.previewCanvas.el.width / 2;
-                    appState.frontText.y = dom.previewCanvas.el.height / 2;
-                }
-                debouncedProfanityCheck(appState.frontText.text, dom.frontText.profanityWarning);
-                drawPreviewCanvas();
-                debouncedUpdateAllPreviews();
+    dom.search.loader.style.display = 'flex';
+    dom.search.resultsContainer.innerHTML = '';
+    try {
+        // FIX: Remove Masonry dependency
+        const response = await fetch(`https://pixabay.com/api/?key=${postcardConfig.apiKeys.pixabayApiKey}&q=${encodeURIComponent(query)}&image_type=photo&per_page=21`);
+        const data = await response.json();
+        dom.search.resultsContainer.innerHTML = '';
+        if (data.hits) {
+            data.hits.forEach(photo => {
+                const img = document.createElement('img');
+                img.src = photo.webformatURL;
+                img.className = 'grid-item w-full h-auto object-cover rounded-lg cursor-pointer';
+                img.onclick = () => {
+                     fetch(photo.largeImageURL).then(r => r.blob()).then(blob => {
+                         const reader = new FileReader();
+                         reader.onload = (e) => {
+                             validateAndSetImage(e.target.result);
+                             dom.search.modal.style.display = 'none';
+                         };
+                         reader.readAsDataURL(blob);
+                     });
+                };
+                dom.search.resultsContainer.appendChild(img);
             });
         }
-    });
-    // No Thanks button removed? Or keep if needed for mobile flow?
-    // dom.noThanksTextBtn...
+    } catch (e) {
+        console.error(e);
+    } finally {
+        dom.search.loader.style.display = 'none';
+    }
+}
 
-    // Canvas Interaction
-    if(dom.previewCanvas.el) {
-        // ... (Add interaction listeners here if not added elsewhere)
-    }
+function resizeImage(base64Str) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.src = base64Str;
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const maxDim = 2400;
+            let w = img.width;
+            let h = img.height;
+            if (w > maxDim || h > maxDim) {
+                if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+                else { w = Math.round(w * maxDim / h); h = maxDim; }
+            }
+            canvas.width = w; canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL('image/jpeg', 0.8));
+        };
+    });
+}
+
+function resetImagePreviews() {
+    appState.uploadedImage = null;
+    appState.imageSrcForResend = null;
+    appState.isPortrait = false;
+    resetImagePanAndZoom();
+    appState.frontText.text = '';
+    appState.frontText.x = null;
+    appState.frontText.y = null;
+    dom.frontText.input.value = '';
+    dom.frontText.profanityWarning.classList.add('hidden');
     
-    // NEW: Add listener for AI button
-    if(dom.aiGenerateBtn) { // Check if it exists before adding listener
-        dom.aiGenerateBtn.addEventListener('click', handleAIAssist);
-    }
+    const ctx = dom.previewCanvas.el.getContext('2d');
+    ctx.clearRect(0, 0, dom.previewCanvas.el.width, dom.previewCanvas.el.height);
     
-    // toggleAccordion(document.getElementById('accordion-header-5'), true);
-    // toggleAccordion(document.getElementById('accordion-header-1'), true);
+    dom.imagePlaceholder.classList.remove('hidden');
+    dom.imageControls.classList.add('hidden');
+    dom.zoomInBtn.parentElement.classList.add('hidden');
+    
+    updatePostcardLayout();
+}
+
+function wrapAddressLine(ctx, text, maxWidthPx) {
+    if (!text) return [];
+    
+    let lines = [];
+    let currentLine = '';
+    const words = text.split(' ');
+
+    for (let i = 0; i < words.length; i++) {
+        const word = words[i];
+        const testLine = currentLine + word + ' ';
+        const metrics = ctx.measureText(testLine);
+        
+        if (metrics.width > maxWidthPx && i > 0) {
+            lines.push(currentLine.trim());
+            currentLine = word + ' ';
+        } else {
+            currentLine = testLine;
+        }
+    }
+    lines.push(currentLine.trim());
+    return lines;
 }
