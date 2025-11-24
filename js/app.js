@@ -27,11 +27,263 @@ const appState = {
     }
 };
 
-// --- MAIN INITIALIZATION ---
-document.addEventListener('DOMContentLoaded', () => {
-    populateDomReferences();
-    loadConfigAndInitialize();
-});
+// --- HELPER FUNCTIONS (Moved to top scope to ensure availability) ---
+
+function showGlobalError(message) {
+    if (dom.errorBannerMessage) {
+        dom.errorBannerMessage.textContent = message;
+        dom.errorBanner.classList.remove('hidden');
+        setTimeout(() => dom.errorBanner.classList.add('hidden'), 5000);
+    } else {
+        console.error(message);
+    }
+}
+
+function applyConfiguration() {
+    if (!postcardConfig) return;
+
+    document.title = postcardConfig.content.pageTitle;
+    if(dom.favicon) dom.favicon.href = postcardConfig.content.faviconURL;
+    if(dom.loadingImage) dom.loadingImage.src = postcardConfig.content.loadingImageURL;
+    
+    if (postcardConfig.content.companyLogoURL && dom.companyLogo) {
+        dom.companyLogo.src = postcardConfig.content.companyLogoURL;
+        dom.companyLogo.classList.remove('hidden');
+    } else if (dom.companyLogo) {
+        dom.companyLogo.classList.add('hidden');
+    }
+
+    if(dom.mainTitle) {
+        dom.mainTitle.textContent = postcardConfig.content.mainTitle;
+        dom.mainTitle.style.color = postcardConfig.styles.titleColor;
+    }
+
+    // Apply button styles
+    if(dom.uploadButton) {
+        dom.uploadButton.style.backgroundColor = postcardConfig.styles.uploadButtonColor;
+        dom.uploadButton.style.color = postcardConfig.styles.uploadButtonTextColor;
+    }
+    if(dom.findImageButton) {
+        dom.findImageButton.style.backgroundColor = postcardConfig.styles.findImageButtonColor;
+        dom.findImageButton.style.color = postcardConfig.styles.findImageButtonTextColor;
+    }
+    if(dom.sendPostcardBtn) {
+        dom.sendPostcardBtn.style.backgroundColor = postcardConfig.styles.sendPostcardButtonColor;
+        dom.sendPostcardBtn.style.color = postcardConfig.styles.sendPostcardButtonTextColor;
+    }
+    
+    if(dom.aiGenerateBtn) {
+        dom.aiGenerateBtn.style.backgroundColor = postcardConfig.styles.uploadButtonColor;
+        dom.aiGenerateBtn.style.color = postcardConfig.styles.uploadButtonTextColor;
+    }
+}
+
+function resetImagePanAndZoom() {
+    appState.imageOffsetX = 0;
+    appState.imageOffsetY = 0;
+    appState.imageZoom = 1.0;
+}
+
+function updatePostcardLayout() {
+    if (!dom.postcardStage) return;
+    
+    const container = dom.postcardStage;
+    container.classList.remove('aspect-[210/148]', 'aspect-[148/210]');
+    
+    if (appState.isPortrait) {
+        container.classList.add('aspect-[148/210]');
+    } else {
+        container.classList.add('aspect-[210/148]');
+    }
+    
+    requestAnimationFrame(() => {
+        if (dom.previewCanvas.el) {
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+            dom.previewCanvas.el.width = w;
+            dom.previewCanvas.el.height = h;
+            if (dom.backPreviewCanvas.el) {
+                dom.backPreviewCanvas.el.width = w;
+                dom.backPreviewCanvas.el.height = h;
+            }
+            
+            if(appState.isFlipped) drawBackPreview();
+            else drawPreviewCanvas();
+        }
+    });
+}
+
+function resetImagePreviews() {
+    appState.uploadedImage = null;
+    appState.imageSrcForResend = null;
+    appState.isPortrait = false;
+    resetImagePanAndZoom();
+    appState.frontText.text = '';
+    appState.frontText.x = null;
+    appState.frontText.y = null;
+    if(dom.frontText.input) dom.frontText.input.value = '';
+    if(dom.frontText.profanityWarning) dom.frontText.profanityWarning.classList.add('hidden');
+    
+    if (dom.previewCanvas.el) {
+        const ctx = dom.previewCanvas.el.getContext('2d');
+        ctx.clearRect(0, 0, dom.previewCanvas.el.width, dom.previewCanvas.el.height);
+    }
+    
+    if(dom.imagePlaceholder) dom.imagePlaceholder.classList.remove('hidden');
+    if(dom.imageControls) dom.imageControls.classList.add('hidden');
+    if(dom.zoomInBtn && dom.zoomInBtn.parentElement) dom.zoomInBtn.parentElement.classList.add('hidden');
+    
+    updatePostcardLayout();
+}
+
+async function validateAndSetImage(src) {
+    const tempImage = new Image();
+    await new Promise((resolve, reject) => { 
+        tempImage.crossOrigin = "Anonymous";
+        tempImage.onload = resolve; 
+        tempImage.onerror = reject; 
+        tempImage.src = src; 
+    });
+
+    if (postcardConfig && tempImage.width < postcardConfig.validation.minImageDimension || tempImage.height < postcardConfig.validation.minImageDimension) {
+        if(dom.imageWarning) {
+            dom.imageWarning.textContent = `For best quality, please upload an image that is at least ${postcardConfig.validation.minImageDimension}px on its shortest side.`;
+            dom.imageWarning.classList.remove('hidden');
+        }
+        if(dom.imageUploader) dom.imageUploader.value = '';
+        resetImagePreviews();
+    } else {
+        if(dom.imageWarning) dom.imageWarning.classList.add('hidden');
+        appState.uploadedImage = tempImage;
+        appState.imageSrcForResend = src;
+        appState.isPortrait = tempImage.height > tempImage.width;
+        resetImagePanAndZoom();
+        
+        if(dom.imagePlaceholder) dom.imagePlaceholder.classList.add('hidden');
+        if(dom.previewContainer) dom.previewContainer.classList.remove('hidden');
+        if(dom.imageControls) dom.imageControls.classList.remove('hidden');
+        if(dom.zoomInBtn && dom.zoomInBtn.parentElement) dom.zoomInBtn.parentElement.classList.remove('hidden');
+        
+        updatePostcardLayout();
+    }
+}
+
+async function resizeImage(base64Str) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.src = base64Str;
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const maxDim = 2400;
+            let w = img.width;
+            let h = img.height;
+            if (w > maxDim || h > maxDim) {
+                if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+                else { w = Math.round(w * maxDim / h); h = maxDim; }
+            }
+            canvas.width = w; canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL('image/jpeg', 0.8));
+        };
+    });
+}
+
+function toggleFlip(forceState = null) {
+    if (!dom.postcardStage) return;
+
+    const newState = forceState !== null ? forceState : !appState.isFlipped;
+    appState.isFlipped = newState;
+
+    const container = dom.postcardStage;
+
+    if (newState) {
+        // BACK
+        container.classList.remove('aspect-[148/210]');
+        container.classList.add('aspect-[210/148]');
+        
+        dom.frontLayer.classList.remove('active-layer');
+        dom.frontLayer.classList.add('hidden-layer');
+        dom.backLayer.classList.remove('hidden-layer');
+        dom.backLayer.classList.add('active-layer');
+        
+        requestAnimationFrame(drawBackPreview); 
+    } else {
+        // FRONT
+        if (appState.isPortrait) {
+            container.classList.remove('aspect-[210/148]');
+            container.classList.add('aspect-[148/210]');
+        } else {
+            container.classList.remove('aspect-[148/210]');
+            container.classList.add('aspect-[210/148]');
+        }
+
+        dom.backLayer.classList.remove('active-layer');
+        dom.backLayer.classList.add('hidden-layer');
+        dom.frontLayer.classList.remove('hidden-layer');
+        dom.frontLayer.classList.add('active-layer');
+        
+        requestAnimationFrame(drawPreviewCanvas);
+    }
+    
+    requestAnimationFrame(() => {
+         const w = container.clientWidth;
+         const h = container.clientHeight;
+         dom.previewCanvas.el.width = w;
+         dom.previewCanvas.el.height = h;
+         dom.backPreviewCanvas.el.width = w;
+         dom.backPreviewCanvas.el.height = h;
+         
+         if (newState) drawBackPreview();
+         else drawPreviewCanvas();
+    });
+}
+
+function switchTab(tabName) {
+    appState.activeTab = tabName;
+
+    dom.navItems.forEach(item => {
+        if (item.dataset.tab === tabName) {
+            item.classList.add('text-blue-600');
+            item.classList.remove('text-gray-400');
+        } else {
+            item.classList.remove('text-blue-600');
+            item.classList.add('text-gray-400');
+        }
+    });
+
+    Object.values(dom.panels).forEach(panel => {
+        if(panel) panel.classList.remove('active');
+    });
+    if (dom.panels[tabName]) dom.panels[tabName].classList.add('active');
+
+    if (['message', 'address', 'send'].includes(tabName)) {
+        if (!appState.isFlipped) toggleFlip(true); 
+    } else {
+        if (appState.isFlipped) toggleFlip(false); 
+    }
+}
+
+function loadLastDesign() {
+    const lastDesign = JSON.parse(localStorage.getItem('lastPostcardDesign'));
+    if (lastDesign) {
+        if(dom.frontText.input) dom.frontText.input.value = lastDesign.frontText.text;
+        if(dom.textInput) dom.textInput.value = lastDesign.message.text;
+        if(dom.fontSelect) dom.fontSelect.value = lastDesign.message.font;
+        if(dom.colorPicker) dom.colorPicker.value = lastDesign.message.color;
+        if(dom.fontSizeSelect) dom.fontSizeSelect.value = lastDesign.message.size || '16';
+        
+        appState.frontText = lastDesign.frontText;
+        appState.isPortrait = lastDesign.isPortrait || false;
+        
+        if (lastDesign.imageSrc) {
+            validateAndSetImage(lastDesign.imageSrc);
+        }
+        switchTab('message'); 
+    }
+}
+
+// --- MAIN INITIALIZATION LOGIC ---
 
 function populateDomReferences() {
     dom = {
@@ -146,12 +398,12 @@ async function loadConfigAndInitialize() {
     } catch (error) {
         console.error("Could not fetch from DB, using local defaults.", error);
         postcardConfig = fallbackConfig;
-        postcardConfig.apiKeys = { recaptchaSiteKey: '', pixabayApiKey: '' }; 
+        if(postcardConfig) postcardConfig.apiKeys = { recaptchaSiteKey: '', pixabayApiKey: '' }; 
         showGlobalError("Could not load application configuration. Using offline defaults.");
     } finally {
         applyConfiguration();
         setupMobileInteractions(); 
-        dom.loadingOverlay.style.display = 'none';
+        if(dom.loadingOverlay) dom.loadingOverlay.style.display = 'none';
         // Ensure main content is available 
         switchTab('photo'); 
         updatePostcardLayout();
@@ -165,17 +417,21 @@ async function loadConfigAndInitialize() {
 
 function setupMobileInteractions() {
     // 1. Tab Switching
-    dom.navItems.forEach(item => {
-        item.addEventListener('click', () => {
-            const tab = item.dataset.tab;
-            switchTab(tab);
+    if (dom.navItems) {
+        dom.navItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const tab = item.dataset.tab;
+                switchTab(tab);
+            });
         });
-    });
+    }
 
     // 2. Flip Button
-    dom.flipBtn.addEventListener('click', () => {
-        toggleFlip();
-    });
+    if (dom.flipBtn) {
+        dom.flipBtn.addEventListener('click', () => {
+            toggleFlip();
+        });
+    }
 
     // 3. Auto-update back preview on input
     const backInputs = [
@@ -183,13 +439,15 @@ function setupMobileInteractions() {
         ...Object.values(dom.addressInputs)
     ];
     backInputs.forEach(input => {
-        input.addEventListener('input', () => {
-            if (appState.isFlipped) drawBackPreview();
-            if (input === dom.textInput) {
-                debouncedProfanityCheck(dom.textInput.value, dom.messageProfanityWarning);
-                checkMessageOverflow();
-            }
-        });
+        if (input) {
+            input.addEventListener('input', () => {
+                if (appState.isFlipped) drawBackPreview();
+                if (input === dom.textInput) {
+                    debouncedProfanityCheck(dom.textInput.value, dom.messageProfanityWarning);
+                    checkMessageOverflow();
+                }
+            });
+        }
     });
 
     // 4. Core Listeners
@@ -203,7 +461,7 @@ function setupMobileInteractions() {
             const reader = new FileReader();
             reader.onload = async (e) => {
                 let imageDataUrl = e.target.result;
-                if (file.size > postcardConfig.validation.maxFileSizeMB * 1024 * 1024) {
+                if (postcardConfig && file.size > postcardConfig.validation.maxFileSizeMB * 1024 * 1024) {
                     imageDataUrl = await resizeImage(imageDataUrl);
                 }
                 validateAndSetImage(imageDataUrl);
@@ -217,50 +475,60 @@ function setupMobileInteractions() {
     // Search Buttons
     if(dom.toolSearchBtn) dom.toolSearchBtn.addEventListener('click', () => dom.search.modal.style.display = 'flex');
     if(dom.findImageButton) dom.findImageButton.addEventListener('click', () => dom.search.modal.style.display = 'flex');
-    dom.search.closeBtn.addEventListener('click', () => dom.search.modal.style.display = 'none');
-    dom.search.searchBtn.addEventListener('click', handleImageSearch);
-    dom.search.input.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleImageSearch(); });
+    if(dom.search.closeBtn) dom.search.closeBtn.addEventListener('click', () => dom.search.modal.style.display = 'none');
+    if(dom.search.searchBtn) dom.search.searchBtn.addEventListener('click', handleImageSearch);
+    if(dom.search.input) dom.search.input.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleImageSearch(); });
 
     // Front Text
-    dom.frontText.input.addEventListener('input', () => {
-        appState.frontText.text = dom.frontText.input.value;
-        if (appState.frontText.x === null) {
-            appState.frontText.x = dom.previewCanvas.el.width / 2;
-            appState.frontText.y = dom.previewCanvas.el.height / 2;
-        }
-        debouncedProfanityCheck(appState.frontText.text, dom.frontText.profanityWarning);
-        drawPreviewCanvas();
-    });
-    [dom.frontText.fontSelect, dom.frontText.colorPicker].forEach(el => {
-        el.addEventListener('input', () => {
-             appState.frontText.font = dom.frontText.fontSelect.value;
-             appState.frontText.color = dom.frontText.colorPicker.value;
-             drawPreviewCanvas();
+    if(dom.frontText.input) {
+        dom.frontText.input.addEventListener('input', () => {
+            appState.frontText.text = dom.frontText.input.value;
+            if (appState.frontText.x === null && dom.previewCanvas.el) {
+                appState.frontText.x = dom.previewCanvas.el.width / 2;
+                appState.frontText.y = dom.previewCanvas.el.height / 2;
+            }
+            debouncedProfanityCheck(appState.frontText.text, dom.frontText.profanityWarning);
+            drawPreviewCanvas();
         });
+    }
+    [dom.frontText.fontSelect, dom.frontText.colorPicker].forEach(el => {
+        if(el) {
+            el.addEventListener('input', () => {
+                 appState.frontText.font = dom.frontText.fontSelect.value;
+                 appState.frontText.color = dom.frontText.colorPicker.value;
+                 drawPreviewCanvas();
+            });
+        }
     });
-    dom.frontText.clearBtn.addEventListener('click', () => {
-        dom.frontText.input.value = '';
-        appState.frontText.text = '';
-        drawPreviewCanvas();
-    });
+    if(dom.frontText.clearBtn) {
+        dom.frontText.clearBtn.addEventListener('click', () => {
+            dom.frontText.input.value = '';
+            appState.frontText.text = '';
+            drawPreviewCanvas();
+        });
+    }
 
     // Message Controls (Sync with preview)
     [dom.fontSelect, dom.fontSizeSelect, dom.colorPicker].forEach(el => {
-        el.addEventListener('input', () => {
-             if (appState.isFlipped) drawBackPreview();
-        });
+        if(el) {
+            el.addEventListener('input', () => {
+                 if (appState.isFlipped) drawBackPreview();
+            });
+        }
     });
 
     // Send Button
-    dom.sendPostcardBtn.addEventListener('click', handleSendPostcard);
+    if(dom.sendPostcardBtn) dom.sendPostcardBtn.addEventListener('click', handleSendPostcard);
     
     // Sender Modal
-    dom.sender.sendBtn.addEventListener('click', handleFinalSend);
-    dom.sender.closeBtn.addEventListener('click', () => {
-        dom.sender.modal.style.display = 'none';
-        dom.sender.detailsView.style.display = 'flex'; 
-        dom.sender.checkEmailView.style.display = 'none';
-    });
+    if(dom.sender.sendBtn) dom.sender.sendBtn.addEventListener('click', handleFinalSend);
+    if(dom.sender.closeBtn) {
+        dom.sender.closeBtn.addEventListener('click', () => {
+            dom.sender.modal.style.display = 'none';
+            dom.sender.detailsView.style.display = 'flex'; 
+            dom.sender.checkEmailView.style.display = 'none';
+        });
+    }
 
     // AI Button
     if(dom.aiGenerateBtn) {
@@ -268,242 +536,33 @@ function setupMobileInteractions() {
     }
 
     // Zoom Controls
-    dom.deleteImageBtn.addEventListener('click', resetImagePreviews);
-    dom.zoomInBtn.addEventListener('click', () => {
-        appState.imageZoom += 0.1;
-        drawPreviewCanvas();
-    });
-    dom.zoomOutBtn.addEventListener('click', () => {
-        appState.imageZoom = Math.max(1.0, appState.imageZoom - 0.1);
-        drawPreviewCanvas();
-    });
+    if(dom.deleteImageBtn) dom.deleteImageBtn.addEventListener('click', resetImagePreviews);
+    if(dom.zoomInBtn) {
+        dom.zoomInBtn.addEventListener('click', () => {
+            appState.imageZoom += 0.1;
+            drawPreviewCanvas();
+        });
+    }
+    if(dom.zoomOutBtn) {
+        dom.zoomOutBtn.addEventListener('click', () => {
+            appState.imageZoom = Math.max(1.0, appState.imageZoom - 0.1);
+            drawPreviewCanvas();
+        });
+    }
 
     // Canvas Interactions
-    const canvas = dom.previewCanvas.el;
-    canvas.addEventListener('mousedown', handleInteractionStart);
-    canvas.addEventListener('mousemove', handleInteractionMove);
-    document.addEventListener('mouseup', handleInteractionEnd);
-    canvas.addEventListener('touchstart', handleInteractionStart);
-    canvas.addEventListener('touchmove', handleInteractionMove);
-    canvas.addEventListener('touchend', handleInteractionEnd);
-}
-
-function switchTab(tabName) {
-    appState.activeTab = tabName;
-
-    dom.navItems.forEach(item => {
-        if (item.dataset.tab === tabName) {
-            item.classList.add('text-blue-600');
-            item.classList.remove('text-gray-400');
-        } else {
-            item.classList.remove('text-blue-600');
-            item.classList.add('text-gray-400');
-        }
-    });
-
-    Object.values(dom.panels).forEach(panel => {
-        if(panel) panel.classList.remove('active');
-    });
-    if (dom.panels[tabName]) dom.panels[tabName].classList.add('active');
-
-    if (['message', 'address', 'send'].includes(tabName)) {
-        if (!appState.isFlipped) toggleFlip(true); 
-    } else {
-        if (appState.isFlipped) toggleFlip(false); 
+    if(dom.previewCanvas.el) {
+        const canvas = dom.previewCanvas.el;
+        canvas.addEventListener('mousedown', handleInteractionStart);
+        canvas.addEventListener('mousemove', handleInteractionMove);
+        document.addEventListener('mouseup', handleInteractionEnd);
+        canvas.addEventListener('touchstart', handleInteractionStart);
+        canvas.addEventListener('touchmove', handleInteractionMove);
+        canvas.addEventListener('touchend', handleInteractionEnd);
     }
 }
 
-function toggleFlip(forceState = null) {
-    const newState = forceState !== null ? forceState : !appState.isFlipped;
-    appState.isFlipped = newState;
-
-    const container = dom.postcardStage;
-
-    if (newState) {
-        // BACK
-        container.classList.remove('aspect-[148/210]');
-        container.classList.add('aspect-[210/148]');
-        
-        dom.frontLayer.classList.remove('active-layer');
-        dom.frontLayer.classList.add('hidden-layer');
-        dom.backLayer.classList.remove('hidden-layer');
-        dom.backLayer.classList.add('active-layer');
-        
-        requestAnimationFrame(drawBackPreview); 
-    } else {
-        // FRONT
-        if (appState.isPortrait) {
-            container.classList.remove('aspect-[210/148]');
-            container.classList.add('aspect-[148/210]');
-        } else {
-            container.classList.remove('aspect-[148/210]');
-            container.classList.add('aspect-[210/148]');
-        }
-
-        dom.backLayer.classList.remove('active-layer');
-        dom.backLayer.classList.add('hidden-layer');
-        dom.frontLayer.classList.remove('hidden-layer');
-        dom.frontLayer.classList.add('active-layer');
-        
-        requestAnimationFrame(drawPreviewCanvas);
-    }
-    
-    requestAnimationFrame(() => {
-         const w = container.clientWidth;
-         const h = container.clientHeight;
-         dom.previewCanvas.el.width = w;
-         dom.previewCanvas.el.height = h;
-         dom.backPreviewCanvas.el.width = w;
-         dom.backPreviewCanvas.el.height = h;
-         
-         if (newState) drawBackPreview();
-         else drawPreviewCanvas();
-    });
-}
-
-function drawBackPreview() {
-    const canvas = dom.backPreviewCanvas.el;
-    if (!canvas) return;
-
-    if (canvas.width !== dom.previewCanvas.el.width || canvas.height !== dom.previewCanvas.el.height) {
-        canvas.width = dom.previewCanvas.el.width;
-        canvas.height = dom.previewCanvas.el.height;
-    }
-    
-    const ctx = canvas.getContext('2d');
-    const width = canvas.width;
-    const height = canvas.height;
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, width, height);
-
-    // Divider
-    ctx.strokeStyle = '#e5e7eb';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    const dividerX = width * 0.58; 
-    ctx.moveTo(dividerX, 20);
-    ctx.lineTo(dividerX, height - 20);
-    ctx.stroke();
-
-    // Stamp Box
-    ctx.strokeStyle = '#cccccc';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5, 5]);
-    const stampSize = width * 0.15;
-    ctx.strokeRect(width - stampSize - 20, 20, stampSize, stampSize);
-    ctx.setLineDash([]);
-
-    // Message
-    const fontSizeVal = parseInt(dom.fontSizeSelect.value) || 16;
-    // Scale font size relative to canvas width
-    const scaleFactor = width / 1200; 
-    const fontSize = fontSizeVal * 2.5 * scaleFactor + 10; 
-
-    const fontFamily = dom.fontSelect.value;
-    const color = dom.colorPicker.value;
-
-    ctx.fillStyle = color;
-    ctx.font = `400 ${fontSize}px ${fontFamily}`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-
-    // Use relative positioning based on canvas size
-    const messageX = width * 0.08; 
-    const messageY = height * 0.08;
-    const messageWidth = dividerX - messageX - (20 * scaleFactor);
-    const lineHeight = fontSize * 1.2;
-
-    wrapText(ctx, dom.textInput.value, messageX, messageY, messageWidth, lineHeight);
-
-    // Address
-    const addressLines = [
-        dom.addressInputs.name.value,
-        dom.addressInputs.line1.value,
-        dom.addressInputs.line2.value,
-        dom.addressInputs.city.value,
-        dom.addressInputs.postcode.value,
-        "United Kingdom"
-    ].filter(Boolean);
-
-    ctx.fillStyle = '#333333';
-    ctx.font = `400 ${14 * 2 * scaleFactor + 8}px 'Inter', sans-serif`; 
-    
-    let addrY = height * 0.5; 
-    const addrX = dividerX + (30 * scaleFactor);
-    const addrLineHeight = (14 * 2 * scaleFactor + 8) * 1.4;
-    const addrMaxWidth = width - addrX - 10;
-
-    addressLines.forEach(line => {
-         const lines = wrapAddressLine(ctx, line, addrMaxWidth);
-         lines.forEach(subLine => {
-             ctx.fillText(subLine, addrX, addrY);
-             addrY += addrLineHeight;
-         });
-    });
-}
-
-function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
-    const lines = text.split('\n');
-    let currentY = y;
-    lines.forEach(line => {
-        const words = line.split(' ');
-        let currentLine = '';
-        for(let n = 0; n < words.length; n++) {
-            const testLine = currentLine + words[n] + ' ';
-            const metrics = ctx.measureText(testLine);
-            if (metrics.width > maxWidth && n > 0) {
-                ctx.fillText(currentLine, x, currentY);
-                currentLine = words[n] + ' ';
-                currentY += lineHeight;
-            } else {
-                currentLine = testLine;
-            }
-        }
-        ctx.fillText(currentLine, x, currentY);
-        currentY += lineHeight;
-    });
-}
-
-function showGlobalError(message) {
-    dom.errorBannerMessage.textContent = message;
-    dom.errorBanner.classList.remove('hidden');
-    setTimeout(() => dom.errorBanner.classList.add('hidden'), 5000);
-}
-
-function applyConfiguration() {
-    // This function applies config to the page
-    // Note: Favicon and Page Title are handled by the preload script
-    
-    // --- NEW: Company Logo ---
-    if (postcardConfig.content.companyLogoURL) {
-        dom.companyLogo.src = postcardConfig.content.companyLogoURL;
-        dom.companyLogo.classList.remove('hidden');
-    } else {
-        dom.companyLogo.classList.add('hidden');
-    }
-    
-    dom.loadingImage.src = postcardConfig.content.loadingImageURL;
-    dom.mainTitle.textContent = postcardConfig.content.mainTitle;
-    dom.mainTitle.style.color = postcardConfig.styles.titleColor;
-
-    // Apply button styles
-    dom.uploadButton.style.backgroundColor = postcardConfig.styles.uploadButtonColor;
-    dom.uploadButton.style.color = postcardConfig.styles.uploadButtonTextColor;
-    dom.findImageButton.style.backgroundColor = postcardConfig.styles.findImageButtonColor;
-    dom.findImageButton.style.color = postcardConfig.styles.findImageButtonTextColor;
-    dom.sendPostcardBtn.style.backgroundColor = postcardConfig.styles.sendPostcardButtonColor;
-    dom.sendPostcardBtn.style.color = postcardConfig.styles.sendPostcardButtonTextColor;
-    
-    // --- NEW: AI Assist Button Style ---
-    // Make sure aiGenerateBtn exists before styling it
-    if (dom.aiGenerateBtn) {
-        dom.aiGenerateBtn.style.backgroundColor = postcardConfig.styles.uploadButtonColor;
-        dom.aiGenerateBtn.style.color = postcardConfig.styles.uploadButtonTextColor;
-    }
-}
-
-// --- CORE HELPER FUNCTIONS ---
+// --- HELPER FUNCTIONS (Moved to top level or defined before use) ---
 
 function debounce(func, delay) {
     let timeout;
@@ -512,12 +571,12 @@ function debounce(func, delay) {
         timeout = setTimeout(() => func.apply(this, args), delay);
     };
 }
-const debouncedUpdateAllPreviews = debounce(() => {}, 300);
+
 const debouncedProfanityCheck = debounce(checkForProfanityAPI, 500);
 
 async function checkForProfanityAPI(text, warningElement) {
-    if (!text.trim()) {
-        warningElement.classList.add('hidden');
+    if (!text || !text.trim()) {
+        if(warningElement) warningElement.classList.add('hidden');
         return false;
     }
     try {
@@ -529,11 +588,11 @@ async function checkForProfanityAPI(text, warningElement) {
         if (!response.ok) return false; 
         const result = await response.json();
         if (result.isProfanity) {
-            warningElement.textContent = "Be more friendly - consider revising the text";
-            warningElement.classList.remove('hidden');
+            if(warningElement) warningElement.textContent = "Be more friendly - consider revising the text";
+            if(warningElement) warningElement.classList.remove('hidden');
             return true;
         } else {
-            warningElement.classList.add('hidden');
+            if(warningElement) warningElement.classList.add('hidden');
             return false;
         }
     } catch (error) {
@@ -596,8 +655,8 @@ function drawCleanFrontOnContext(ctx, width, height, bleedPx = 0) {
 }
 
 function drawPreviewCanvas() {
+    if (!dom.previewCanvas || !dom.previewCanvas.el) return;
     const canvas = dom.previewCanvas.el;
-    if (!canvas) return;
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (appState.uploadedImage) {
@@ -851,198 +910,6 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
     return { frontCanvas, backCanvas };
 }
 
-async function handleSendPostcard() {
-     const required = ['name', 'line1', 'city', 'postcode'];
-     const valid = required.every(f => dom.addressInputs[f].value.trim());
-     if (!valid) {
-         alert("Please fill in address fields");
-         switchTab('address');
-         return;
-     }
-     const frontIsProfane = await checkForProfanityAPI(dom.frontText.input.value, dom.frontText.profanityWarning);
-     const backIsProfane = await checkForProfanityAPI(dom.textInput.value, dom.messageProfanityWarning);
-     if (frontIsProfane || backIsProfane) {
-         alert("Be more friendly - consider revising the text");
-         return;
-     }
-     dom.sender.modal.style.display = 'flex';
-     if (typeof grecaptcha !== 'undefined' && dom.sender.recaptchaContainer.innerHTML === '') {
-         grecaptcha.render(dom.sender.recaptchaContainer, { 'sitekey' : postcardConfig.apiKeys.recaptchaSiteKey });
-     }
-}
-
-async function handleFinalSend() {
-    const senderName = dom.sender.nameInput.value;
-    const senderEmail = dom.sender.emailInput.value;
-    const recaptchaToken = grecaptcha.getResponse();
-    
-    if (!senderName.trim() || !senderEmail.trim()) {
-        dom.sender.errorMessage.textContent = 'Please enter your name and email address.';
-        dom.sender.errorMessage.classList.remove('hidden');
-        return;
-    }
-    if (!recaptchaToken) {
-        dom.sender.errorMessage.textContent = 'Please complete the reCAPTCHA verification.';
-        dom.sender.errorMessage.classList.remove('hidden');
-        return;
-    }
-
-    localStorage.setItem('senderName', senderName);
-    localStorage.setItem('senderEmail', senderEmail);
-    const btnText = dom.sender.sendBtn.querySelector('.btn-text');
-    btnText.style.display = 'none';
-    const loader = document.createElement('div');
-    loader.className = 'loader';
-    dom.sender.sendBtn.prepend(loader);
-    dom.sender.sendBtn.disabled = true;
-    dom.sender.errorMessage.classList.add('hidden');
-
-    try {
-        const { frontCanvas: printFront, backCanvas: printBack } = await generatePostcardImages({ forEmail: false, includeAddressOnBack: false });
-        const { frontCanvas: emailFront, backCanvas: emailBack } = await generatePostcardImages({ forEmail: true, includeAddressOnBack: true });
-
-        const createLowResCanvas = (sourceCanvas, maxWidth = 400) => {
-            const scale = maxWidth / sourceCanvas.width;
-            const newWidth = sourceCanvas.width * scale;
-            const newHeight = sourceCanvas.height * scale;
-            const lowResCanvas = document.createElement('canvas');
-            lowResCanvas.width = newWidth;
-            lowResCanvas.height = newHeight;
-            const ctx = lowResCanvas.getContext('2d');
-            ctx.drawImage(sourceCanvas, 0, 0, newWidth, newHeight);
-            return lowResCanvas;
-        };
-        
-        const lowResFront = createLowResCanvas(emailFront);
-        const lowResBack = createLowResCanvas(emailBack);
-
-        const frontPrintBlob = await new Promise(r => printFront.toBlob(r, 'image/jpeg', 0.9));
-        const backPrintBlob = await new Promise(r => printBack.toBlob(r, 'image/jpeg', 0.9));
-        const frontEmailBlob = await new Promise(r => lowResFront.toBlob(r, 'image/jpeg', 0.8));
-        const backEmailBlob = await new Promise(r => lowResBack.toBlob(r, 'image/jpeg', 0.8));
-
-        const sanitize = (s) => s.replace(/[^a-z0-9]/gi, '-');
-        const baseName = `${sanitize(senderEmail)}-${sanitize(senderName)}-${sanitize(dom.addressInputs.postcode.value)}-${Date.now()}`;
-        
-        const uploadAndGetData = async (filename, blob) => {
-            const response = await fetch(new URL(`/api/upload?filename=${filename}`, window.location.origin), { method: 'POST', body: blob });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(`Failed to upload ${filename}. Server responded with ${response.status}: ${errorData.details || errorData.error}`);
-            }
-            return response.json();
-        };
-
-        const [frontEmailData, backEmailData] = await Promise.all([
-            uploadAndGetData(`${baseName}-front-email.jpg`, frontEmailBlob),
-            uploadAndGetData(`${baseName}-back-email.jpg`, backEmailBlob)
-        ]);
-        const frontPrintData = await uploadAndGetData(`${baseName}-front-print.jpg`, frontPrintBlob);
-        const backPrintData = await uploadAndGetData(`${baseName}-back-print.jpg`, backPrintBlob);
-
-        const recipient = {};
-        for (const key in dom.addressInputs) recipient[key] = dom.addressInputs[key].value.trim();
-
-        const resendData = {
-            imageSrc: appState.imageSrcForResend,
-            isPortrait: appState.isPortrait,
-            frontText: appState.frontText,
-            message: {
-                text: dom.textInput.value,
-                font: dom.fontSelect.value,
-                color: dom.colorPicker.value,
-                size: dom.fontSizeSelect.value,
-                weight: '400'
-            }
-        };
-        localStorage.setItem('lastPostcardDesign', JSON.stringify(resendData));
-        
-        const postcardData = {
-            sender: { name: senderName, email: senderEmail },
-            recipient: recipient,
-            frontImageUrl: frontPrintData.url,
-            frontImageUrlForEmail: frontEmailData.url,
-            backImageUrl: backPrintData.url, 
-            backImageUrlWithAddress: backEmailData.url,
-            emailConfig: {
-                subject: postcardConfig.email.subject,
-                body: postcardConfig.email.body,
-                buttonColor: postcardConfig.styles.sendPostcardButtonColor,
-                buttonTextColor: postcardConfig.styles.sendPostcardButtonTextColor,
-                senderName: postcardConfig.email.senderName
-            },
-            recaptchaToken: recaptchaToken
-        };
-        
-        const verificationResponse = await fetch(new URL('/api/request-verification', window.location.origin), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ postcardData })
-        });
-        if (!verificationResponse.ok) {
-            const errorResult = await verificationResponse.json();
-            throw new Error(errorResult.message || 'Failed to send verification email.');
-        }
-        dom.sender.detailsView.style.display = 'none';
-        dom.sender.checkEmailView.style.display = 'flex';
-    } catch (error) {
-        console.error('An error occurred during the final send process:', error);
-        dom.sender.errorMessage.textContent = error.message || 'An unknown error occurred. Please try again.';
-        dom.sender.errorMessage.classList.remove('hidden');
-        btnText.style.display = 'inline';
-        if(loader.parentNode) loader.remove();
-        dom.sender.sendBtn.disabled = false;
-        grecaptcha.reset();
-    }
-}
-
-async function handleAIAssist() {
-    const recipient = dom.aiRecipient.value;
-    const topic = dom.aiTopic.value;
-    const tone = dom.aiTone.value;
-    
-    dom.aiGenerateBtn.disabled = true;
-    dom.aiGenerateBtn.querySelector('.btn-text').textContent = '...';
-    
-    try {
-        const response = await fetch(new URL('/api/generate-message', window.location.origin), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ recipient, topic, tone })
-        });
-        const data = await response.json();
-        if (data.message) {
-            dom.textInput.value = data.message;
-            drawBackPreview(); 
-        }
-    } catch (e) {
-        console.error(e);
-        alert("AI Failed");
-    } finally {
-        dom.aiGenerateBtn.disabled = false;
-        dom.aiGenerateBtn.querySelector('.btn-text').textContent = 'Write for me';
-    }
-}
-
-function loadLastDesign() {
-    const lastDesign = JSON.parse(localStorage.getItem('lastPostcardDesign'));
-    if (lastDesign) {
-        dom.frontText.input.value = lastDesign.frontText.text;
-        dom.textInput.value = lastDesign.message.text;
-        dom.fontSelect.value = lastDesign.message.font;
-        dom.colorPicker.value = lastDesign.message.color;
-        dom.fontSizeSelect.value = lastDesign.message.size || '16';
-        
-        appState.frontText = lastDesign.frontText;
-        appState.isPortrait = lastDesign.isPortrait || false;
-        
-        if (lastDesign.imageSrc) {
-            validateAndSetImage(lastDesign.imageSrc);
-        }
-        switchTab('message'); 
-    }
-}
-
 function checkMessageOverflow() {
     // Placeholder for overflow check logic if needed
 }
@@ -1086,50 +953,6 @@ async function handleImageSearch() {
     }
 }
 
-function resizeImage(base64Str) {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.src = base64Str;
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const maxDim = 2400;
-            let w = img.width;
-            let h = img.height;
-            if (w > maxDim || h > maxDim) {
-                if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
-                else { w = Math.round(w * maxDim / h); h = maxDim; }
-            }
-            canvas.width = w; canvas.height = h;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, w, h);
-            resolve(canvas.toDataURL('image/jpeg', 0.8));
-        };
-    });
-}
-
-function resetImagePreviews() {
-    appState.uploadedImage = null;
-    appState.imageSrcForResend = null;
-    appState.isPortrait = false;
-    resetImagePanAndZoom();
-    appState.frontText.text = '';
-    appState.frontText.x = null;
-    appState.frontText.y = null;
-    dom.frontText.input.value = '';
-    dom.frontText.profanityWarning.classList.add('hidden');
-    
-    // Reset canvas
-    const ctx = dom.previewCanvas.el.getContext('2d');
-    ctx.clearRect(0, 0, dom.previewCanvas.el.width, dom.previewCanvas.el.height);
-    
-    // Show placeholder
-    dom.imagePlaceholder.classList.remove('hidden');
-    dom.imageControls.classList.add('hidden');
-    dom.zoomInBtn.parentElement.classList.add('hidden');
-    
-    updatePostcardLayout();
-}
-
 function wrapAddressLine(ctx, text, maxWidthPx) {
     if (!text) return [];
     
@@ -1142,7 +965,7 @@ function wrapAddressLine(ctx, text, maxWidthPx) {
         const testLine = currentLine + word + ' ';
         const metrics = ctx.measureText(testLine);
         
-        if (metrics.width > maxWidth && i > 0) {
+        if (metrics.width > maxWidthPx && i > 0) {
             lines.push(currentLine.trim());
             currentLine = word + ' ';
         } else {
@@ -1151,4 +974,86 @@ function wrapAddressLine(ctx, text, maxWidthPx) {
     }
     lines.push(currentLine.trim());
     return lines;
+}
+
+function drawBackPreview() {
+    const canvas = dom.backPreviewCanvas.el;
+    if (!canvas) return;
+
+    if (canvas.width !== dom.previewCanvas.el.width || canvas.height !== dom.previewCanvas.el.height) {
+        canvas.width = dom.previewCanvas.el.width;
+        canvas.height = dom.previewCanvas.el.height;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, width, height);
+
+    // Divider
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    const dividerX = width * 0.58; 
+    ctx.moveTo(dividerX, 20);
+    ctx.lineTo(dividerX, height - 20);
+    ctx.stroke();
+
+    // Stamp Box
+    ctx.strokeStyle = '#cccccc';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    const stampSize = width * 0.15;
+    ctx.strokeRect(width - stampSize - 20, 20, stampSize, stampSize);
+    ctx.setLineDash([]);
+
+    // Message
+    const fontSizeVal = parseInt(dom.fontSizeSelect.value) || 16;
+    // Scale font size relative to canvas width
+    const scaleFactor = width / 1200; 
+    const fontSize = fontSizeVal * 2.5 * scaleFactor + 10; 
+
+    const fontFamily = dom.fontSelect.value;
+    const color = dom.colorPicker.value;
+
+    ctx.fillStyle = color;
+    ctx.font = `400 ${fontSize}px ${fontFamily}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+
+    // Use relative positioning based on canvas size
+    const messageX = width * 0.08; 
+    const messageY = height * 0.08;
+    const messageWidth = dividerX - messageX - (20 * scaleFactor);
+    const lineHeight = fontSize * 1.2;
+
+    wrapText(ctx, dom.textInput.value, messageX, messageY, messageWidth, lineHeight);
+
+    // Address
+    const addressLines = [
+        dom.addressInputs.name.value,
+        dom.addressInputs.line1.value,
+        dom.addressInputs.line2.value,
+        dom.addressInputs.city.value,
+        dom.addressInputs.postcode.value,
+        "United Kingdom"
+    ].filter(Boolean);
+
+    ctx.fillStyle = '#333333';
+    ctx.font = `400 ${14 * 2 * scaleFactor + 8}px 'Inter', sans-serif`; 
+    
+    let addrY = height * 0.5; 
+    const addrX = dividerX + (30 * scaleFactor);
+    const addrLineHeight = (14 * 2 * scaleFactor + 8) * 1.4;
+    const addrMaxWidth = width - addrX - 10;
+
+    addressLines.forEach(line => {
+         const lines = wrapAddressLine(ctx, line, addrMaxWidth);
+         lines.forEach(subLine => {
+             ctx.fillText(subLine, addrX, addrY);
+             addrY += addrLineHeight;
+         });
+    });
 }
