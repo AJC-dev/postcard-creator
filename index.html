@@ -66,10 +66,10 @@
       <span id="error-banner-message" class="block sm:inline">Something went wrong.</span>
     </div>
 
-    <!-- HEADER -->
-    <header class="flex-none bg-white shadow-sm z-20 px-4 py-3 flex justify-between items-center">
-        <img id="company-logo" src="" alt="Logo" class="h-8 w-auto object-contain hidden">
-        <h1 id="main-title" class="text-lg font-bold truncate ml-2"></h1>
+    <!-- HEADER (Centered Logo & Subtitle) -->
+    <header class="flex-none bg-white shadow-sm z-20 px-4 py-3 flex flex-col items-center justify-center text-center">
+        <img id="company-logo" src="" alt="Logo" class="h-8 w-auto object-contain mb-1 hidden block mx-auto">
+        <h1 id="main-title" class="text-xs font-medium text-gray-500"></h1>
     </header>
 
     <!-- MAIN WORKSPACE (The "Stage") -->
@@ -86,6 +86,7 @@
                 <div id="image-placeholder" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/90 z-20">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-slate-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                     <div class="flex gap-3">
+                        <!-- Note: This label MUST point to the file input ID below -->
                         <label id="upload-button" for="image-uploader" class="cursor-pointer bg-blue-600 text-white font-bold py-2 px-4 rounded-full shadow-lg active:scale-95 transition-transform">Upload Photo</label>
                         <button id="find-image-button" class="bg-slate-800 text-white font-bold py-2 px-4 rounded-full shadow-lg active:scale-95 transition-transform">Search</button>
                     </div>
@@ -115,8 +116,11 @@
             </button>
 
         </div>
-        <!-- FILE INPUT (Moved out to body level to ensure it's clickable) -->
-        <input type="file" id="image-uploader" accept="image/*" class="hidden"/>
+        
+        <!-- HIDDEN FILE INPUT -->
+        <!-- Moved to body scope and ensured no 'hidden' class blocking interaction if needed, though 'hidden' usually works for labels -->
+        <!-- Removed 'hidden' class and used style display:none to be safe across browsers -->
+        <input type="file" id="image-uploader" accept="image/*" style="display:none;"/>
     </div>
 
     <!-- TOOLS PANEL (Slide up) -->
@@ -124,12 +128,8 @@
         
         <!-- 1. PHOTO TOOLS -->
         <div id="tool-panel-photo" class="tool-panel p-4 text-center">
-            <p class="text-sm text-gray-500 mb-3">Change or adjust your photo</p>
-            <div class="flex justify-center gap-3">
-                 <!-- Note: label points to id="image-uploader" -->
-                 <label for="image-uploader" class="cursor-pointer bg-blue-100 text-blue-700 font-medium py-2 px-4 rounded-lg text-sm">Upload New</label>
-                 <button id="tool-search-btn" class="bg-slate-100 text-slate-700 font-medium py-2 px-4 rounded-lg text-sm">Search Image</button>
-            </div>
+            <!-- Removed "Change or adjust" text and buttons as requested -->
+            <p class="text-sm text-gray-400 italic">Use the controls on the card to edit your photo.</p>
         </div>
 
         <!-- 2. FRONT TEXT TOOLS -->
@@ -177,8 +177,9 @@
 
         <!-- 3. MESSAGE TOOLS -->
         <div id="tool-panel-message" class="tool-panel p-4">
-             <!-- AI Assistant Toggle -->
-             <div id="ai-assistant-container" class="mb-3 bg-blue-50 p-2 rounded-lg border border-blue-100 hidden">
+             
+             <!-- RESTORED: AI Assistant Toggle -->
+             <div id="ai-assistant-container" class="mb-3 bg-blue-50 p-2 rounded-lg border border-blue-100 block">
                 <div class="flex gap-2 mb-2">
                     <input type="text" id="ai-recipient" placeholder="Who is it for?" class="flex-1 p-2 text-xs border rounded">
                     <select id="ai-topic" class="flex-1 p-2 text-xs border rounded"><option>Having fun</option><option>Miss you</option><option>Weather is great</option></select>
@@ -292,8 +293,7 @@
         </div>
     </nav>
 
-    <!-- Modals (Same as before, essentially) -->
-    <!-- Sender Modal -->
+    <!-- Modals (Sender Modal & Search Modal preserved) -->
      <div id="sender-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
         <div id="sender-details-view" class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm flex flex-col gap-4">
             <div class="flex justify-between items-center">
@@ -316,7 +316,6 @@
         </div>
     </div>
 
-    <!-- Search Modal -->
     <div id="search-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] flex flex-col">
             <div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">Search for an Image</h3><button id="close-search-modal-btn" class="text-2xl leading-none">&times;</button></div>
