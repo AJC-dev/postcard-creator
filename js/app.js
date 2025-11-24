@@ -1,7 +1,7 @@
 import fallbackConfig from './config.js';
 
-let postcardConfig; // Will be populated from DB or fallback
-let dom = {}; // To be populated with DOM references
+let postcardConfig; 
+let dom = {}; 
 
 // --- APPLICATION STATE ---
 const appState = {
@@ -12,8 +12,8 @@ const appState = {
     imageZoom: 1.0,
     messagePlaceholderInterval: null,
     isPortrait: false,
-    isFlipped: false, // NEW: Track flip state
-    activeTab: 'photo', // NEW: Track active tab
+    isFlipped: false, 
+    activeTab: 'photo', 
     frontText: {
         text: '',
         x: null,
@@ -27,11 +27,9 @@ const appState = {
 };
 
 // --- MAIN INITIALIZATION ---
-// This is the main entry point, ensuring the DOM is ready first.
 document.addEventListener('DOMContentLoaded', () => {
     populateDomReferences();
     loadConfigAndInitialize();
-    setupMobileInteractions(); // NEW: Setup nav and flip
 });
 
 function populateDomReferences() {
@@ -46,16 +44,16 @@ function populateDomReferences() {
         frontLayer: document.getElementById('front-layer'),
         backLayer: document.getElementById('back-layer'),
         previewCanvas: { el: document.getElementById('preview-canvas') },
-        backPreviewCanvas: { el: document.getElementById('back-preview-canvas') }, // NEW
+        backPreviewCanvas: { el: document.getElementById('back-preview-canvas') },
         flipBtn: document.getElementById('flip-card-btn'),
         
         // Front Image Controls
         imagePlaceholder: document.getElementById('image-placeholder'),
-        uploadButton: document.getElementById('upload-button'), // On placeholder
-        findImageButton: document.getElementById('find-image-button'), // On placeholder
-        toolSearchBtn: document.getElementById('tool-search-btn'), // In panel
+        uploadButton: document.getElementById('upload-button'), 
+        findImageButton: document.getElementById('find-image-button'), 
+        toolSearchBtn: document.getElementById('tool-search-btn'), 
         imageUploader: document.getElementById('image-uploader'),
-        imageControls: document.getElementById('image-controls'), // Zoom/Delete container
+        imageControls: document.getElementById('image-controls'), 
         deleteImageBtn: document.getElementById('delete-image-btn'),
         zoomInBtn: document.getElementById('zoom-in-btn'),
         zoomOutBtn: document.getElementById('zoom-out-btn'),
@@ -136,6 +134,32 @@ function populateDomReferences() {
     };
 }
 
+async function loadConfigAndInitialize() {
+    try {
+        const response = await fetch(new URL('/api/get-config', window.location.origin));
+        if (!response.ok) throw new Error('Config fetch failed');
+        postcardConfig = await response.json();
+    } catch (error) {
+        console.error("Could not fetch from DB, using local defaults.", error);
+        postcardConfig = fallbackConfig;
+        postcardConfig.apiKeys = { recaptchaSiteKey: '', pixabayApiKey: '' }; 
+        showGlobalError("Could not load application configuration. Using offline defaults.");
+    } finally {
+        applyConfiguration();
+        setupMobileInteractions(); // Initialize listeners
+        dom.loadingOverlay.style.display = 'none';
+        dom.mainContent.classList.remove('hidden'); // Ensure main content is visible
+        switchTab('photo'); // Start on photo tab
+        updatePostcardLayout();
+        
+        // Check for existing design to load
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('sendAgain') === 'true') {
+            loadLastDesign();
+        }
+    }
+}
+
 function setupMobileInteractions() {
     // 1. Tab Switching
     dom.navItems.forEach(item => {
@@ -165,13 +189,13 @@ function setupMobileInteractions() {
         });
     });
 
-    // 4. Re-attach core event listeners (merged from previous logic)
+    // 4. Core Listeners
     
     // Image Uploader
     dom.imageUploader.addEventListener('change', async (event) => {
         const file = event.target.files[0];
         if (!file) return;
-        event.target.value = '';
+        event.target.value = ''; // Clear input
         const reader = new FileReader();
         reader.onload = async (e) => {
             let imageDataUrl = e.target.result;
@@ -193,7 +217,6 @@ function setupMobileInteractions() {
     // Front Text
     dom.frontText.input.addEventListener('input', () => {
         appState.frontText.text = dom.frontText.input.value;
-        // Default position center if first time
         if (appState.frontText.x === null) {
             appState.frontText.x = dom.previewCanvas.el.width / 2;
             appState.frontText.y = dom.previewCanvas.el.height / 2;
@@ -214,7 +237,7 @@ function setupMobileInteractions() {
         drawPreviewCanvas();
     });
 
-    // Message Controls (Font/Color/Size update back preview)
+    // Message Controls (Sync with preview)
     [dom.fontSelect, dom.fontSizeSelect, dom.colorPicker].forEach(el => {
         el.addEventListener('input', () => {
              if (appState.isFlipped) drawBackPreview();
@@ -248,7 +271,7 @@ function setupMobileInteractions() {
         drawPreviewCanvas();
     });
 
-    // Canvas Interactions (Touch/Mouse)
+    // Canvas Interactions
     const canvas = dom.previewCanvas.el;
     canvas.addEventListener('mousedown', handleInteractionStart);
     canvas.addEventListener('mousemove', handleInteractionMove);
@@ -278,11 +301,11 @@ function switchTab(tabName) {
     });
     if (dom.panels[tabName]) dom.panels[tabName].classList.add('active');
 
-    // Handle Auto-Flip based on context
+    // Handle Auto-Flip
     if (['message', 'address', 'send'].includes(tabName)) {
-        if (!appState.isFlipped) toggleFlip(true); // Force flip to back
+        if (!appState.isFlipped) toggleFlip(true); 
     } else {
-        if (appState.isFlipped) toggleFlip(false); // Force flip to front
+        if (appState.isFlipped) toggleFlip(false); 
     }
 }
 
@@ -293,23 +316,18 @@ function toggleFlip(forceState = null) {
     const container = dom.postcardStage;
 
     if (newState) {
-        // --- FLIPPING TO BACK ---
-        // 1. Force Landscape Aspect Ratio
+        // BACK
         container.classList.remove('aspect-[148/210]');
         container.classList.add('aspect-[210/148]');
         
-        // 2. Show Back Layer
         dom.frontLayer.classList.remove('active-layer');
         dom.frontLayer.classList.add('hidden-layer');
         dom.backLayer.classList.remove('hidden-layer');
         dom.backLayer.classList.add('active-layer');
         
-        // 3. Draw Back Content (ensure dimensions update first)
         requestAnimationFrame(drawBackPreview); 
-        
     } else {
-        // --- FLIPPING TO FRONT ---
-        // 1. Restore Aspect Ratio based on Portrait state
+        // FRONT
         if (appState.isPortrait) {
             container.classList.remove('aspect-[210/148]');
             container.classList.add('aspect-[148/210]');
@@ -318,17 +336,15 @@ function toggleFlip(forceState = null) {
             container.classList.add('aspect-[210/148]');
         }
 
-        // 2. Show Front Layer
         dom.backLayer.classList.remove('active-layer');
         dom.backLayer.classList.add('hidden-layer');
         dom.frontLayer.classList.remove('hidden-layer');
         dom.frontLayer.classList.add('active-layer');
         
-        // 3. Redraw Front Content
         requestAnimationFrame(drawPreviewCanvas);
     }
     
-    // Update canvas internal dimensions to match new container size
+    // Update canvas internal dimensions
     requestAnimationFrame(() => {
          const w = container.clientWidth;
          const h = container.clientHeight;
@@ -342,12 +358,10 @@ function toggleFlip(forceState = null) {
     });
 }
 
-// --- RENDER BACK PREVIEW (Synchronous/Fast for UI) ---
 function drawBackPreview() {
     const canvas = dom.backPreviewCanvas.el;
     if (!canvas) return;
 
-    // Match the resolution of the front canvas
     if (canvas.width !== dom.previewCanvas.el.width || canvas.height !== dom.previewCanvas.el.height) {
         canvas.width = dom.previewCanvas.el.width;
         canvas.height = dom.previewCanvas.el.height;
@@ -357,11 +371,10 @@ function drawBackPreview() {
     const width = canvas.width;
     const height = canvas.height;
 
-    // Clear
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, width, height);
 
-    // --- Divider Line ---
+    // Divider
     ctx.strokeStyle = '#e5e7eb';
     ctx.lineWidth = 4;
     ctx.beginPath();
@@ -370,7 +383,7 @@ function drawBackPreview() {
     ctx.lineTo(dividerX, height - 20);
     ctx.stroke();
 
-    // --- Stamp Box ---
+    // Stamp Box
     ctx.strokeStyle = '#cccccc';
     ctx.lineWidth = 2;
     ctx.setLineDash([5, 5]);
@@ -378,9 +391,8 @@ function drawBackPreview() {
     ctx.strokeRect(width - stampSize - 20, 20, stampSize, stampSize);
     ctx.setLineDash([]);
 
-    // --- Message Text ---
+    // Message
     const fontSizeVal = parseInt(dom.fontSizeSelect.value) || 16;
-    // Scale font size relative to canvas width
     const scaleFactor = width / 1200; 
     const fontSize = fontSizeVal * 2.5 * scaleFactor + 10; 
 
@@ -392,15 +404,14 @@ function drawBackPreview() {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
 
-    // Use relative positioning based on canvas size
-    const messageX = width * 0.08; // approx 50px on 1200px width
+    const messageX = width * 0.08; 
     const messageY = height * 0.08;
     const messageWidth = dividerX - messageX - (20 * scaleFactor);
     const lineHeight = fontSize * 1.2;
 
     wrapText(ctx, dom.textInput.value, messageX, messageY, messageWidth, lineHeight);
 
-    // --- Address Text ---
+    // Address
     const addressLines = [
         dom.addressInputs.name.value,
         dom.addressInputs.line1.value,
@@ -419,7 +430,6 @@ function drawBackPreview() {
     const addrMaxWidth = width - addrX - 10;
 
     addressLines.forEach(line => {
-         // Use wrapText logic for address lines too in this preview
          const lines = wrapAddressLine(ctx, line, addrMaxWidth);
          lines.forEach(subLine => {
              ctx.fillText(subLine, addrX, addrY);
@@ -431,11 +441,9 @@ function drawBackPreview() {
 function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
     const lines = text.split('\n');
     let currentY = y;
-
     lines.forEach(line => {
         const words = line.split(' ');
         let currentLine = '';
-        
         for(let n = 0; n < words.length; n++) {
             const testLine = currentLine + words[n] + ' ';
             const metrics = ctx.measureText(testLine);
@@ -452,50 +460,6 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
     });
 }
 
-
-// --- EXISTING LOGIC (Config, Drawing, etc.) ---
-
-async function loadConfigAndInitialize() {
-    try {
-        // --- FIX: Use absolute URL for fetch ---
-        const response = await fetch(new URL('/api/get-config', window.location.origin));
-        if (!response.ok) {
-             throw new Error('Could not fetch config from API');
-        }
-        postcardConfig = await response.json();
-    } catch (error) {
-        console.error("Could not fetch from DB, using local defaults.", error);
-        postcardConfig = fallbackConfig;
-        showGlobalError("Could not load application configuration. Using offline defaults.");
-    } finally {
-        applyConfiguration();
-        initializePostcardCreator();
-        dom.loadingOverlay.style.display = 'none';
-        dom.mainContent.style.display = 'block';
-    }
-}
-
-// ... (No changes needed to loadLastDesign) ...
-
-function loadLastDesign() {
-    const lastDesign = JSON.parse(localStorage.getItem('lastPostcardDesign'));
-    if (lastDesign) {
-        dom.frontText.input.value = lastDesign.frontText.text;
-        dom.textInput.value = lastDesign.message.text;
-        dom.fontSelect.value = lastDesign.message.font;
-        dom.colorPicker.value = lastDesign.message.color;
-        dom.fontSizeSelect.value = lastDesign.message.size || '16';
-        
-        appState.frontText = lastDesign.frontText;
-        appState.isPortrait = lastDesign.isPortrait || false;
-        
-        if (lastDesign.imageSrc) {
-            validateAndSetImage(lastDesign.imageSrc);
-        }
-        switchTab('message'); // Go to message tab
-    }
-}
-
 function showGlobalError(message) {
     dom.errorBannerMessage.textContent = message;
     dom.errorBanner.classList.remove('hidden');
@@ -503,26 +467,19 @@ function showGlobalError(message) {
 }
 
 function applyConfiguration() {
-    // This function applies config to the page
-    // Note: Favicon and Page Title are handled by the preload script
-    
-    // --- NEW: Company Logo ---
+    document.title = postcardConfig.content.pageTitle;
+    dom.favicon.href = postcardConfig.content.faviconURL;
+    dom.loadingImage.src = postcardConfig.content.loadingImageURL;
     if (postcardConfig.content.companyLogoURL) {
         dom.companyLogo.src = postcardConfig.content.companyLogoURL;
         dom.companyLogo.classList.remove('hidden');
-    } else {
-        dom.companyLogo.classList.add('hidden');
     }
-    
-    dom.loadingImage.src = postcardConfig.content.loadingImageURL;
     dom.mainTitle.textContent = postcardConfig.content.mainTitle;
-    dom.mainTitle.style.color = postcardConfig.styles.titleColor;
-    
-    // Apply button styles
-    // ... (Button styling logic is fine)
+    if(dom.aiGenerateBtn) {
+        dom.aiGenerateBtn.style.backgroundColor = postcardConfig.styles.uploadButtonColor;
+        dom.aiGenerateBtn.style.color = postcardConfig.styles.uploadButtonTextColor;
+    }
 }
-
-// --- CORE HELPER FUNCTIONS ---
 
 function debounce(func, delay) {
     let timeout;
@@ -531,13 +488,10 @@ function debounce(func, delay) {
         timeout = setTimeout(() => func.apply(this, args), delay);
     };
 }
-
-const debouncedUpdateAllPreviews = debounce(() => {
-    // This function is mainly for the final send preview, but we can trigger it here
-    // updateFinalPreviews() is called in handleFinalSend usually.
-}, 300);
-
+const debouncedUpdateAllPreviews = debounce(() => {}, 300);
 const debouncedProfanityCheck = debounce(checkForProfanityAPI, 500);
+
+// --- HELPER FUNCTIONS (Previously defined/hoisted) ---
 
 async function checkForProfanityAPI(text, warningElement) {
     if (!text.trim()) {
@@ -545,7 +499,7 @@ async function checkForProfanityAPI(text, warningElement) {
         return false;
     }
     try {
-        const response = await fetch(new URL('https://vector.profanity.dev', window.location.origin), {
+        const response = await fetch('https://vector.profanity.dev', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message: text }),
@@ -593,42 +547,28 @@ function drawCoverImage(ctx, img, canvasWidth, canvasHeight, offsetX, offsetY, z
 function drawCleanFrontOnContext(ctx, width, height, bleedPx = 0) {
      if (appState.uploadedImage) {
         ctx.save();
-        
         const effectiveScale = (appState.isPortrait && width > height) ? 
-            height / dom.previewCanvas.el.height : // Portrait: Compare long sides
-            width / dom.previewCanvas.el.width;   // Landscape: Compare long sides
-
+            height / dom.previewCanvas.el.height : 
+            width / dom.previewCanvas.el.width; 
         const scaledOffsetX = appState.imageOffsetX * effectiveScale;
         const scaledOffsetY = appState.imageOffsetY * effectiveScale;
-        
-        // Draw on full width/height to fill the bleed area
         drawCoverImage(ctx, appState.uploadedImage, width, height, scaledOffsetX, scaledOffsetY, appState.imageZoom);
-
         ctx.restore();
     }
     if (appState.frontText.text) {
         const { text, font, size, color, x, y, rotation, width: textWidth } = appState.frontText;
-        
         const effectiveScale = (appState.isPortrait && width > height) ? 
-            height / dom.previewCanvas.el.height : // Portrait: Compare long sides
-            width / dom.previewCanvas.el.width;   // Landscape: Compare long sides
-
+            height / dom.previewCanvas.el.height : 
+            width / dom.previewCanvas.el.width;   
         ctx.save();
         ctx.fillStyle = color;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        
-        // The text must be offset by the bleed
         const textX = (x * effectiveScale) + bleedPx;
         const textY = (y * effectiveScale) + bleedPx;
-
         ctx.translate(textX, textY);
         ctx.rotate(rotation * Math.PI / 180);
-        
-        const scaledSize = size * effectiveScale;
-        const scaledWidth = textWidth * effectiveScale;
-        
-        drawWrappedText(ctx, text, 0, 0, scaledWidth, scaledSize * 1.2, `${scaledSize}px ${font}`);
+        drawWrappedText(ctx, text, 0, 0, textWidth * effectiveScale, size * effectiveScale * 1.2, `${size * effectiveScale}px ${font}`);
         ctx.restore();
     }
 }
@@ -641,8 +581,6 @@ function drawPreviewCanvas() {
     if (appState.uploadedImage) {
         drawCoverImage(ctx, appState.uploadedImage, canvas.width, canvas.height, appState.imageOffsetX, appState.imageOffsetY, appState.imageZoom);
     }
-    // Safety lines not needed on mobile preview usually, but can be added back if desired
-    // For text overlay
     if (appState.frontText.text) {
         const { text, font, size, color, x, y, rotation, width: textWidth } = appState.frontText;
         ctx.save();
@@ -654,7 +592,6 @@ function drawPreviewCanvas() {
         drawWrappedText(ctx, text, 0, 0, textWidth, size * 1.2, `${size}px ${font}`);
         ctx.restore();
         
-        // Selection Box / Handles
         const metrics = getTextMetrics(ctx);
         if (metrics) {
              const handles = getHandlePositions(metrics);
@@ -666,7 +603,6 @@ function drawPreviewCanvas() {
              ctx.setLineDash([5, 5]);
              ctx.strokeRect(metrics.box.x, metrics.box.y, metrics.box.width, metrics.box.height);
              ctx.restore();
-             // Draw handles if needed (simplified for mobile?)
              ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
              ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
              Object.values(handles).forEach(handle => {
@@ -705,39 +641,30 @@ function getTextMetrics(ctx) {
     const { text, font, size, width: textWidth } = appState.frontText;
     if (!text) return null;
     ctx.font = `${size}px ${font}`;
-    // Simple mock metrics for handle positioning
     const height = size * 1.2; 
-    // Real metrics would need re-wrapping calc
-    const box = { x: -textWidth / 2, y: -height / 2, width: textWidth, height: height }; // simplified
+    const box = { x: -textWidth / 2, y: -height / 2, width: textWidth, height: height }; 
     return { x: appState.frontText.x, y: appState.frontText.y, box }; 
 }
 
 function getHandlePositions(metrics) {
-    // Simplified handle positions for the single text box
     const { x, y, box } = metrics;
-    // Just corner handles for now
     return {
-        rotate: { x: x, y: y - 50 }, // Top handle
-        size: { x: x + box.width/2 + 20, y: y } // Right handle
+        rotate: { x: x, y: y - 50 }, 
+        size: { x: x + box.width/2 + 20, y: y } 
     };
 }
 
-// Text Interaction Logic (Drag/Rotate/Resize)
+// Text Interaction
 let interactionMode = 'none';
 let startState = {};
 const handleInteractionStart = (e) => {
-    if (e.type === 'touchstart') {
-        // e.preventDefault(); // Allow scrolling if not hitting object
-    }
+    if (e.type === 'touchstart') { }
     const rect = dom.previewCanvas.el.getBoundingClientRect();
     const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
     const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
     const mouseX = clientX - rect.left;
     const mouseY = clientY - rect.top;
     
-    // Check text handles
-    // ... (Simplified interaction logic for dragging)
-    // For now, assume dragging image unless hitting text
     interactionMode = 'draggingImage';
     startState = {
         mouseX, mouseY,
@@ -749,9 +676,9 @@ const handleInteractionStart = (e) => {
 const handleInteractionMove = (e) => {
      if (interactionMode === 'none') return;
      e.preventDefault();
-     const rect = dom.previewCanvas.el.getBoundingClientRect();
      const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
      const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+     const rect = dom.previewCanvas.el.getBoundingClientRect();
      const mouseX = clientX - rect.left;
      const mouseY = clientY - rect.top;
 
@@ -821,7 +748,7 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
     tempBackCanvas.height = mainContentHeightPx;
     const tempBackCtx = tempBackCanvas.getContext('2d');
     
-    // Draw Back Content (Using Logic from drawBackPreview but scaled)
+    // Draw Back Content
     tempBackCtx.fillStyle = 'white';
     tempBackCtx.fillRect(0, 0, mainContentWidthPx, mainContentHeightPx);
     
@@ -845,9 +772,8 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
     tempBackCtx.textBaseline = 'top';
     
     // Message Nudge 50px
-    // We need to scale the 50px nudge based on resolution too
-    const resolutionScale = mainContentWidthPx / 1200; // Approx
-    const messageX = 50 * resolutionScale * 2; // 50px on screen -> print
+    const resolutionScale = mainContentWidthPx / 1200; 
+    const messageX = 50 * resolutionScale * 2; 
     const lineHeight = hiResFontSize * 1.2;
     const messageMaxWidth = dividerX - messageX - 20;
     
@@ -860,7 +786,6 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
          const addressLines = [dom.addressInputs.name.value, dom.addressInputs.line1.value, dom.addressInputs.line2.value, dom.addressInputs.city.value, dom.addressInputs.postcode.value].filter(Boolean);
          const addrX = dividerX + 20;
          const addrLineHeight = hiResAddressFontSize * 1.4;
-         // center vertically
          let addrY = (mainContentHeightPx / 2) - ((addressLines.length * addrLineHeight) / 2);
          
          addressLines.forEach(line => {
@@ -880,13 +805,14 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
     const frontCtx = frontCanvas.getContext('2d');
     
     const backCanvas = document.createElement('canvas');
-    backCanvas.width = finalWidthPx;
+    backCanvas.width = finalWidthPx; 
     backCanvas.height = finalHeightPx;
     const backCtx = backCanvas.getContext('2d');
 
     [frontCtx, backCtx].forEach(ctx => {
         ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
         ctx.shadowBlur = 6;
+        ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 4;
     });
 
@@ -904,7 +830,6 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
 }
 
 async function handleSendPostcard() {
-     // Validate address
      const required = ['name', 'line1', 'city', 'postcode'];
      const valid = required.every(f => dom.addressInputs[f].value.trim());
      if (!valid) {
@@ -912,8 +837,12 @@ async function handleSendPostcard() {
          switchTab('address');
          return;
      }
-     // Profanity check
-     // ... (simplified)
+     const frontIsProfane = await checkForProfanityAPI(dom.frontText.input.value, dom.frontText.profanityWarning);
+     const backIsProfane = await checkForProfanityAPI(dom.textInput.value, dom.messageProfanityWarning);
+     if (frontIsProfane || backIsProfane) {
+         alert("Be more friendly - consider revising the text");
+         return;
+     }
      dom.sender.modal.style.display = 'flex';
      if (typeof grecaptcha !== 'undefined' && dom.sender.recaptchaContainer.innerHTML === '') {
          grecaptcha.render(dom.sender.recaptchaContainer, { 'sitekey' : postcardConfig.apiKeys.recaptchaSiteKey });
@@ -921,19 +850,132 @@ async function handleSendPostcard() {
 }
 
 async function handleFinalSend() {
-    // ... (Existing logic for upload and api/request-verification)
-    // Refer to previous app.js for full implementation of uploadAndGetData etc.
-    // I am abbreviating here to stay within limits, but the core logic remains identical.
-    // Just ensure you use the generatePostcardImages function defined above.
     const senderName = dom.sender.nameInput.value;
     const senderEmail = dom.sender.emailInput.value;
-    // ...
-    // Call generatePostcardImages({forEmail: false}) -> upload
-    // Call generatePostcardImages({forEmail: true}) -> upload
-    // Call /api/request-verification
+    const recaptchaToken = grecaptcha.getResponse();
     
-    // MOCK SUCCESS FOR UI DEMO
-    alert("Sending logic would trigger here. Check console.");
+    if (!senderName.trim() || !senderEmail.trim()) {
+        dom.sender.errorMessage.textContent = 'Please enter your name and email address.';
+        dom.sender.errorMessage.classList.remove('hidden');
+        return;
+    }
+    if (!recaptchaToken) {
+        dom.sender.errorMessage.textContent = 'Please complete the reCAPTCHA verification.';
+        dom.sender.errorMessage.classList.remove('hidden');
+        return;
+    }
+
+    localStorage.setItem('senderName', senderName);
+    localStorage.setItem('senderEmail', senderEmail);
+    const btnText = dom.sender.sendBtn.querySelector('.btn-text');
+    btnText.style.display = 'none';
+    const loader = document.createElement('div');
+    loader.className = 'loader';
+    dom.sender.sendBtn.prepend(loader);
+    dom.sender.sendBtn.disabled = true;
+    dom.sender.errorMessage.classList.add('hidden');
+
+    try {
+        // 1. Generate High-Res Print Images (No Email Styling)
+        const { frontCanvas: printFront, backCanvas: printBack } = await generatePostcardImages({ forEmail: false, includeAddressOnBack: false });
+        
+        // 2. Generate Web/Email Images (With Shadow)
+        const { frontCanvas: emailFront, backCanvas: emailBack } = await generatePostcardImages({ forEmail: true, includeAddressOnBack: true });
+
+        // Helper to resize
+        const createLowResCanvas = (sourceCanvas, maxWidth = 400) => {
+            const scale = maxWidth / sourceCanvas.width;
+            const newWidth = sourceCanvas.width * scale;
+            const newHeight = sourceCanvas.height * scale;
+            const lowResCanvas = document.createElement('canvas');
+            lowResCanvas.width = newWidth;
+            lowResCanvas.height = newHeight;
+            const ctx = lowResCanvas.getContext('2d');
+            ctx.drawImage(sourceCanvas, 0, 0, newWidth, newHeight);
+            return lowResCanvas;
+        };
+        
+        const lowResFront = createLowResCanvas(emailFront);
+        const lowResBack = createLowResCanvas(emailBack);
+
+        // blobs
+        const frontPrintBlob = await new Promise(r => printFront.toBlob(r, 'image/jpeg', 0.9));
+        const backPrintBlob = await new Promise(r => printBack.toBlob(r, 'image/jpeg', 0.9));
+        const frontEmailBlob = await new Promise(r => lowResFront.toBlob(r, 'image/jpeg', 0.8));
+        const backEmailBlob = await new Promise(r => lowResBack.toBlob(r, 'image/jpeg', 0.8));
+
+        // filenames
+        const sanitize = (s) => s.replace(/[^a-z0-9]/gi, '-');
+        const baseName = `${sanitize(senderEmail)}-${sanitize(senderName)}-${sanitize(dom.addressInputs.postcode.value)}-${Date.now()}`;
+        
+        const uploadAndGetData = async (filename, blob) => {
+            const response = await fetch(new URL(`/api/upload?filename=${filename}`, window.location.origin), { method: 'POST', body: blob });
+            if (!response.ok) throw new Error('Upload failed');
+            return response.json();
+        };
+
+        const [frontEmailData, backEmailData] = await Promise.all([
+            uploadAndGetData(`${baseName}-front-email.jpg`, frontEmailBlob),
+            uploadAndGetData(`${baseName}-back-email.jpg`, backEmailBlob)
+        ]);
+        const frontPrintData = await uploadAndGetData(`${baseName}-front-print.jpg`, frontPrintBlob);
+        const backPrintData = await uploadAndGetData(`${baseName}-back-print.jpg`, backPrintBlob);
+
+        const recipient = {};
+        for (const key in dom.addressInputs) recipient[key] = dom.addressInputs[key].value.trim();
+
+        // Save Design
+        const resendData = {
+            imageSrc: appState.imageSrcForResend,
+            isPortrait: appState.isPortrait,
+            frontText: appState.frontText,
+            message: {
+                text: dom.textInput.value,
+                font: dom.fontSelect.value,
+                color: dom.colorPicker.value,
+                size: dom.fontSizeSelect.value,
+                weight: '400'
+            }
+        };
+        localStorage.setItem('lastPostcardDesign', JSON.stringify(resendData));
+        
+        const postcardData = {
+            sender: { name: senderName, email: senderEmail },
+            recipient: recipient,
+            frontImageUrl: frontPrintData.url,
+            frontImageUrlForEmail: frontEmailData.url,
+            backImageUrl: backPrintData.url, 
+            backImageUrlWithAddress: backEmailData.url,
+            emailConfig: {
+                subject: postcardConfig.email.subject,
+                body: postcardConfig.email.body,
+                buttonColor: postcardConfig.styles.sendPostcardButtonColor,
+                buttonTextColor: postcardConfig.styles.sendPostcardButtonTextColor,
+                senderName: postcardConfig.email.senderName
+            },
+            recaptchaToken: recaptchaToken
+        };
+        
+        const verificationResponse = await fetch(new URL('/api/request-verification', window.location.origin), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ postcardData })
+        });
+        
+        if (!verificationResponse.ok) throw new Error('Failed to send verification');
+        
+        dom.sender.detailsView.style.display = 'none';
+        dom.sender.checkEmailView.style.display = 'flex';
+
+    } catch (error) {
+        console.error(error);
+        dom.sender.errorMessage.textContent = error.message || 'Error sending postcard';
+        dom.sender.errorMessage.classList.remove('hidden');
+        btnText.style.display = 'inline';
+        if(loader.parentNode) loader.remove();
+        dom.sender.sendBtn.disabled = false;
+        grecaptcha.reset();
+    }
 }
 
 async function handleAIAssist() {
@@ -953,7 +995,7 @@ async function handleAIAssist() {
         const data = await response.json();
         if (data.message) {
             dom.textInput.value = data.message;
-            drawBackPreview(); // update preview
+            drawBackPreview(); 
         }
     } catch (e) {
         console.error(e);
@@ -964,6 +1006,88 @@ async function handleAIAssist() {
     }
 }
 
+function loadLastDesign() {
+    const lastDesign = JSON.parse(localStorage.getItem('lastPostcardDesign'));
+    if (lastDesign) {
+        dom.frontText.input.value = lastDesign.frontText.text;
+        dom.textInput.value = lastDesign.message.text;
+        dom.fontSelect.value = lastDesign.message.font;
+        dom.colorPicker.value = lastDesign.message.color;
+        dom.fontSizeSelect.value = lastDesign.message.size || '16';
+        
+        appState.frontText = lastDesign.frontText;
+        appState.isPortrait = lastDesign.isPortrait || false;
+        
+        if (lastDesign.imageSrc) {
+            validateAndSetImage(lastDesign.imageSrc);
+        }
+        switchTab('message'); 
+    }
+}
+
 function checkMessageOverflow() {
-    // Logic to check length against back canvas constraints
+    // Placeholder for overflow check logic if needed
+}
+
+async function handleImageSearch() {
+    const query = dom.search.input.value;
+    if (!query) return;
+    // ... (Simplified for brevity, full logic is standard fetch to pixabay)
+    // Assuming existing handleImageSearch logic...
+    // Since I need to provide the full file, I will include a basic version here
+    if (!postcardConfig.apiKeys.pixabayApiKey) {
+        alert("Pixabay API Key missing");
+        return;
+    }
+    dom.search.loader.style.display = 'flex';
+    dom.search.resultsContainer.innerHTML = '';
+    try {
+        const response = await fetch(`https://pixabay.com/api/?key=${postcardConfig.apiKeys.pixabayApiKey}&q=${encodeURIComponent(query)}&image_type=photo&per_page=21`);
+        const data = await response.json();
+        dom.search.resultsContainer.innerHTML = '';
+        if (data.hits) {
+            data.hits.forEach(photo => {
+                const img = document.createElement('img');
+                img.src = photo.webformatURL;
+                img.className = 'grid-item';
+                img.onclick = () => {
+                     // fetch large image
+                     fetch(photo.largeImageURL).then(r => r.blob()).then(blob => {
+                         const reader = new FileReader();
+                         reader.onload = (e) => {
+                             validateAndSetImage(e.target.result);
+                             dom.search.modal.style.display = 'none';
+                         };
+                         reader.readAsDataURL(blob);
+                     });
+                };
+                dom.search.resultsContainer.appendChild(img);
+            });
+        }
+    } catch (e) {
+        console.error(e);
+    } finally {
+        dom.search.loader.style.display = 'none';
+    }
+}
+
+function resizeImage(base64Str) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.src = base64Str;
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const maxDim = 2400;
+            let w = img.width;
+            let h = img.height;
+            if (w > maxDim || h > maxDim) {
+                if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+                else { w = Math.round(w * maxDim / h); h = maxDim; }
+            }
+            canvas.width = w; canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL('image/jpeg', 0.8));
+        };
+    });
 }
