@@ -1,7 +1,7 @@
 import fallbackConfig from './config.js';
 
-let postcardConfig; 
-let dom = {}; 
+let postcardConfig; // Will be populated from DB or fallback
+let dom = {}; // To be populated with DOM references
 
 // --- APPLICATION STATE ---
 const appState = {
@@ -146,13 +146,12 @@ async function loadConfigAndInitialize() {
         showGlobalError("Could not load application configuration. Using offline defaults.");
     } finally {
         applyConfiguration();
-        setupMobileInteractions(); // Initialize listeners
+        setupMobileInteractions(); 
         dom.loadingOverlay.style.display = 'none';
-        dom.mainContent.classList.remove('hidden'); // Ensure main content is visible
-        switchTab('photo'); // Start on photo tab
+        dom.mainContent.classList.remove('hidden'); 
+        switchTab('photo'); 
         updatePostcardLayout();
         
-        // Check for existing design to load
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('sendAgain') === 'true') {
             loadLastDesign();
@@ -191,11 +190,10 @@ function setupMobileInteractions() {
 
     // 4. Core Listeners
     
-    // Image Uploader
     dom.imageUploader.addEventListener('change', async (event) => {
         const file = event.target.files[0];
         if (!file) return;
-        event.target.value = ''; // Clear input
+        event.target.value = ''; 
         const reader = new FileReader();
         reader.onload = async (e) => {
             let imageDataUrl = e.target.result;
@@ -207,14 +205,12 @@ function setupMobileInteractions() {
         reader.readAsDataURL(file);
     });
 
-    // Search Buttons
     if(dom.toolSearchBtn) dom.toolSearchBtn.addEventListener('click', () => dom.search.modal.style.display = 'flex');
     if(dom.findImageButton) dom.findImageButton.addEventListener('click', () => dom.search.modal.style.display = 'flex');
     dom.search.closeBtn.addEventListener('click', () => dom.search.modal.style.display = 'none');
     dom.search.searchBtn.addEventListener('click', handleImageSearch);
     dom.search.input.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleImageSearch(); });
 
-    // Front Text
     dom.frontText.input.addEventListener('input', () => {
         appState.frontText.text = dom.frontText.input.value;
         if (appState.frontText.x === null) {
@@ -237,17 +233,14 @@ function setupMobileInteractions() {
         drawPreviewCanvas();
     });
 
-    // Message Controls (Sync with preview)
     [dom.fontSelect, dom.fontSizeSelect, dom.colorPicker].forEach(el => {
         el.addEventListener('input', () => {
              if (appState.isFlipped) drawBackPreview();
         });
     });
 
-    // Send Button
     dom.sendPostcardBtn.addEventListener('click', handleSendPostcard);
     
-    // Sender Modal
     dom.sender.sendBtn.addEventListener('click', handleFinalSend);
     dom.sender.closeBtn.addEventListener('click', () => {
         dom.sender.modal.style.display = 'none';
@@ -255,12 +248,10 @@ function setupMobileInteractions() {
         dom.sender.checkEmailView.style.display = 'none';
     });
 
-    // AI Button
     if(dom.aiGenerateBtn) {
         dom.aiGenerateBtn.addEventListener('click', handleAIAssist);
     }
 
-    // Zoom Controls
     dom.deleteImageBtn.addEventListener('click', resetImagePreviews);
     dom.zoomInBtn.addEventListener('click', () => {
         appState.imageZoom += 0.1;
@@ -271,7 +262,6 @@ function setupMobileInteractions() {
         drawPreviewCanvas();
     });
 
-    // Canvas Interactions
     const canvas = dom.previewCanvas.el;
     canvas.addEventListener('mousedown', handleInteractionStart);
     canvas.addEventListener('mousemove', handleInteractionMove);
@@ -284,7 +274,6 @@ function setupMobileInteractions() {
 function switchTab(tabName) {
     appState.activeTab = tabName;
 
-    // Update Active Nav Styling
     dom.navItems.forEach(item => {
         if (item.dataset.tab === tabName) {
             item.classList.add('text-blue-600');
@@ -295,13 +284,11 @@ function switchTab(tabName) {
         }
     });
 
-    // Show active panel
     Object.values(dom.panels).forEach(panel => {
         if(panel) panel.classList.remove('active');
     });
     if (dom.panels[tabName]) dom.panels[tabName].classList.add('active');
 
-    // Handle Auto-Flip
     if (['message', 'address', 'send'].includes(tabName)) {
         if (!appState.isFlipped) toggleFlip(true); 
     } else {
@@ -316,7 +303,6 @@ function toggleFlip(forceState = null) {
     const container = dom.postcardStage;
 
     if (newState) {
-        // BACK
         container.classList.remove('aspect-[148/210]');
         container.classList.add('aspect-[210/148]');
         
@@ -327,7 +313,6 @@ function toggleFlip(forceState = null) {
         
         requestAnimationFrame(drawBackPreview); 
     } else {
-        // FRONT
         if (appState.isPortrait) {
             container.classList.remove('aspect-[210/148]');
             container.classList.add('aspect-[148/210]');
@@ -344,7 +329,6 @@ function toggleFlip(forceState = null) {
         requestAnimationFrame(drawPreviewCanvas);
     }
     
-    // Update canvas internal dimensions
     requestAnimationFrame(() => {
          const w = container.clientWidth;
          const h = container.clientHeight;
@@ -374,7 +358,6 @@ function drawBackPreview() {
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, width, height);
 
-    // Divider
     ctx.strokeStyle = '#e5e7eb';
     ctx.lineWidth = 4;
     ctx.beginPath();
@@ -383,7 +366,6 @@ function drawBackPreview() {
     ctx.lineTo(dividerX, height - 20);
     ctx.stroke();
 
-    // Stamp Box
     ctx.strokeStyle = '#cccccc';
     ctx.lineWidth = 2;
     ctx.setLineDash([5, 5]);
@@ -391,7 +373,6 @@ function drawBackPreview() {
     ctx.strokeRect(width - stampSize - 20, 20, stampSize, stampSize);
     ctx.setLineDash([]);
 
-    // Message
     const fontSizeVal = parseInt(dom.fontSizeSelect.value) || 16;
     const scaleFactor = width / 1200; 
     const fontSize = fontSizeVal * 2.5 * scaleFactor + 10; 
@@ -411,7 +392,6 @@ function drawBackPreview() {
 
     wrapText(ctx, dom.textInput.value, messageX, messageY, messageWidth, lineHeight);
 
-    // Address
     const addressLines = [
         dom.addressInputs.name.value,
         dom.addressInputs.line1.value,
@@ -491,7 +471,7 @@ function debounce(func, delay) {
 const debouncedUpdateAllPreviews = debounce(() => {}, 300);
 const debouncedProfanityCheck = debounce(checkForProfanityAPI, 500);
 
-// --- HELPER FUNCTIONS (Previously defined/hoisted) ---
+// --- HELPER FUNCTIONS ---
 
 async function checkForProfanityAPI(text, warningElement) {
     if (!text.trim()) {
@@ -995,7 +975,7 @@ async function handleAIAssist() {
         const data = await response.json();
         if (data.message) {
             dom.textInput.value = data.message;
-            drawBackPreview(); 
+            drawBackPreview(); // update preview
         }
     } catch (e) {
         console.error(e);
@@ -1090,4 +1070,29 @@ function resizeImage(base64Str) {
             resolve(canvas.toDataURL('image/jpeg', 0.8));
         };
     });
+}
+
+function resetImagePreviews() {
+    appState.uploadedImage = null;
+    appState.imageSrcForResend = null;
+    appState.isPortrait = false;
+    resetImagePanAndZoom();
+    appState.frontText.text = '';
+    appState.frontText.x = null;
+    appState.frontText.y = null;
+    dom.frontText.input.value = '';
+    dom.frontText.profanityWarning.classList.add('hidden');
+    // No accordion parts to hide/show anymore, just reset state
+    // dom.ticks.two.classList.add('hidden'); // Ticks are gone
+    
+    // Reset canvas
+    const ctx = dom.previewCanvas.el.getContext('2d');
+    ctx.clearRect(0, 0, dom.previewCanvas.el.width, dom.previewCanvas.el.height);
+    
+    // Show placeholder
+    dom.imagePlaceholder.classList.remove('hidden');
+    dom.imageControls.classList.add('hidden');
+    dom.zoomInBtn.parentElement.classList.add('hidden');
+    
+    updatePostcardLayout();
 }
