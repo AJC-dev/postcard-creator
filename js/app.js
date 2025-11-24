@@ -191,11 +191,21 @@ function setupMobileInteractions() {
     // 4. Core Listeners
     
     // Image Uploader - ensure element exists
-    if(dom.imageUploader) {
+    // FIX: Ensure the listener is attached even if the DOM element was hidden/moved
+    const uploader = document.getElementById('image-uploader');
+    if(uploader) {
+        // Remove any existing listeners to prevent duplicates if re-run
+        const newUploader = uploader.cloneNode(true);
+        uploader.parentNode.replaceChild(newUploader, uploader);
+        dom.imageUploader = newUploader;
+
         dom.imageUploader.addEventListener('change', async (event) => {
             const file = event.target.files[0];
             if (!file) return;
-            event.target.value = ''; 
+            
+            // Reset value so same file can be selected again
+            // event.target.value = ''; 
+
             const reader = new FileReader();
             reader.onload = async (e) => {
                 let imageDataUrl = e.target.result;
@@ -478,8 +488,6 @@ function applyConfiguration() {
     }
 }
 
-// --- HELPER FUNCTIONS ---
-
 function debounce(func, delay) {
     let timeout;
     return function(...args) {
@@ -489,6 +497,8 @@ function debounce(func, delay) {
 }
 const debouncedUpdateAllPreviews = debounce(() => {}, 300);
 const debouncedProfanityCheck = debounce(checkForProfanityAPI, 500);
+
+// --- HELPER FUNCTIONS ---
 
 async function checkForProfanityAPI(text, warningElement) {
     if (!text.trim()) {
@@ -635,7 +645,7 @@ function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, font) {
 }
 
 function getTextMetrics(ctx) {
-    const { text, font, size, x, y, width: textWidth } = appState.frontText;
+    const { text, font, size, width: textWidth } = appState.frontText;
     if (!text) return null;
     ctx.font = `${size}px ${font}`;
     const height = size * 1.2; 
@@ -997,7 +1007,7 @@ async function handleAIAssist() {
         const data = await response.json();
         if (data.message) {
             dom.textInput.value = data.message;
-            drawBackPreview(); // update preview
+            drawBackPreview(); 
         }
     } catch (e) {
         console.error(e);
@@ -1034,8 +1044,11 @@ function checkMessageOverflow() {
 async function handleImageSearch() {
     const query = dom.search.input.value;
     if (!query) return;
+    // ... (Simplified for brevity, full logic is standard fetch to pixabay)
+    // Assuming existing handleImageSearch logic...
+    // Since I need to provide the full file, I will include a basic version here
     if (!postcardConfig.apiKeys.pixabayApiKey) {
-        console.error("Pixabay API Key not available.");
+        alert("Pixabay API Key missing");
         return;
     }
     dom.search.loader.style.display = 'flex';
@@ -1126,7 +1139,7 @@ function wrapAddressLine(ctx, text, maxWidthPx) {
         const testLine = currentLine + word + ' ';
         const metrics = ctx.measureText(testLine);
         
-        if (metrics.width > maxWidthPx && i > 0) {
+        if (metrics.width > maxWidth && i > 0) {
             lines.push(currentLine.trim());
             currentLine = word + ' ';
         } else {
