@@ -2,57 +2,32 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Loading...</title>
     <link id="favicon" rel="icon" type="image/x-icon" href="" />
     
-    <!-- PRELOAD CONFIGURATION SCRIPT - Loads config immediately -->
+    <!-- PRELOAD CONFIGURATION SCRIPT -->
     <script>
         (function() {
-            // Store config globally for immediate use
             window.__postcardConfig = null;
-            
-            // Fetch config as early as possible
-            // --- FIX: Use absolute URL for fetch ---
             fetch(new URL('/api/get-config', window.location.origin))
-                .then(response => {
-                    if (!response.ok) throw new Error('Config fetch failed');
-                    return response.json();
-                })
+                .then(response => response.ok ? response.json() : Promise.reject('Config fetch failed'))
                 .then(config => {
                     window.__postcardConfig = config;
-                    
-                    // Apply critical config immediately when DOM is ready
-                    const applyImmediateConfig = () => {
+                    const applyConfig = () => {
                         const loadingImage = document.getElementById('loading-image');
                         const favicon = document.getElementById('favicon');
-                        
                         if (loadingImage && config.content.loadingImageURL) {
-                            // Cache-busting to ensure fresh image load
                             loadingImage.src = config.content.loadingImageURL + '?t=' + Date.now();
                             loadingImage.style.display = 'block';
                         }
-                        
-                        if (favicon && config.content.faviconURL) {
-                            favicon.href = config.content.faviconURL + '?t=' + Date.now();
-                        }
-                        
-                        if (config.content.pageTitle) {
-                            document.title = config.content.pageTitle;
-                        }
+                        if (favicon && config.content.faviconURL) favicon.href = config.content.faviconURL;
+                        if (config.content.pageTitle) document.title = config.content.pageTitle;
                     };
-                    
-                    // Apply immediately if DOM is ready, otherwise wait
-                    if (document.readyState === 'loading') {
-                        document.addEventListener('DOMContentLoaded', applyImmediateConfig);
-                    } else {
-                        applyImmediateConfig();
-                    }
+                    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyConfig);
+                    else applyConfig();
                 })
-                .catch(error => {
-                    console.error('Failed to preload config:', error);
-                    // Fallback will be handled by main app
-                });
+                .catch(console.error);
         })();
     </script>
     
@@ -63,310 +38,241 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Caveat:wght@400;700&family=Dancing+Script:wght@400;700&family=Indie+Flower&family=Pacifico&family=Homemade+Apple&family=Gochi+Hand&family=Dawning+of+a+New+Day&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
+    <style>
+        /* Hide scrollbar for tool panels */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        /* Smooth panel transitions */
+        .tool-panel { display: none; animation: slideUp 0.3s ease-out; }
+        .tool-panel.active { display: block; }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        /* Canvas container flip effect */
+        .canvas-layer { transition: opacity 0.3s ease; position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        .canvas-layer.hidden-layer { opacity: 0; pointer-events: none; z-index: 0; }
+        .canvas-layer.active-layer { opacity: 1; pointer-events: auto; z-index: 10; }
+    </style>
 </head>
-<body class="bg-slate-50 text-gray-800 flex flex-col items-center min-h-screen p-4 md:p-8">
+<body class="bg-slate-100 text-gray-800 h-screen flex flex-col overflow-hidden">
 
-    <!-- Loading Overlay - No hardcoded src -->
+    <!-- Loading Overlay -->
     <div id="loading-overlay" class="fixed inset-0 bg-slate-50 flex items-center justify-center z-50">
         <img id="loading-image" src="" alt="Loading..." class="h-16 w-16" style="display:none;">
-        <!-- Fallback spinner if image doesn't load -->
     </div>
 
-    <div id="error-banner" class="hidden w-full max-w-2xl mx-auto bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-4" role="alert">
+    <div id="error-banner" class="hidden fixed top-4 left-4 right-4 z-50 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-lg">
       <strong class="font-bold">Error:</strong>
       <span id="error-banner-message" class="block sm:inline">Something went wrong.</span>
     </div>
 
-    <!-- Main Content (hidden by default) -->
-    <div id="main-content" class="w-full max-w-2xl mx-auto hidden">
-        <header class="text-center mb-8">
-            <!-- NEW: Company Logo -->
-            <img id="company-logo" src="" alt="Company Logo" class="h-16 w-auto mx-auto mb-4 hidden">
+    <!-- HEADER -->
+    <header class="flex-none bg-white shadow-sm z-20 px-4 py-3 flex justify-between items-center">
+        <img id="company-logo" src="" alt="Logo" class="h-8 w-auto object-contain hidden">
+        <h1 id="main-title" class="text-lg font-bold truncate ml-2"></h1>
+    </header>
+
+    <!-- MAIN WORKSPACE (The "Stage") -->
+    <div id="workspace" class="flex-grow relative flex items-center justify-center bg-slate-200 p-4 overflow-hidden">
+        
+        <!-- Canvas Container -->
+        <!-- Aspect ratio is enforced by JS resizing, but we set a max width/height wrapper -->
+        <div id="postcard-stage" class="relative w-full max-w-2xl aspect-[210/148] bg-white rounded-lg shadow-2xl transition-all duration-300">
             
-            <h1 id="main-title" class="text-2xl md:text-3xl font-bold"></h1>
-            <p id="subtitle" class="text-black mt-2"></p>
-        </header>
-
-        <main class="w-full bg-white p-4 sm:p-6 rounded-2xl shadow-xl flex flex-col gap-2">
-
-            <!-- Accordion Section 1: Front Image -->
-            <div class="border rounded-lg overflow-hidden">
-                <div id="accordion-header-1" class="accordion-header flex justify-between items-center p-2 cursor-pointer bg-slate-50 hover:bg-slate-100">
-                     <div class="flex items-center gap-2">
-                        <svg id="tick-1" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-500 hidden" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>
-                        <h3 class="text-sm font-bold text-gray-700">1. Design Front</h3>
+            <!-- FRONT CANVAS LAYER -->
+            <div id="front-layer" class="canvas-layer active-layer rounded-lg overflow-hidden bg-white">
+                <canvas id="preview-canvas" class="w-full h-full"></canvas>
+                
+                <!-- Front Empty State / Controls Overlay -->
+                <div id="image-placeholder" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/90 z-20">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-slate-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    <div class="flex gap-3">
+                        <label id="upload-button" for="image-uploader" class="cursor-pointer bg-blue-600 text-white font-bold py-2 px-4 rounded-full shadow-lg active:scale-95 transition-transform">Upload Photo</label>
+                        <button id="find-image-button" class="bg-slate-800 text-white font-bold py-2 px-4 rounded-full shadow-lg active:scale-95 transition-transform">Search</button>
                     </div>
-                    <svg class="accordion-icon w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    <p id="image-warning" class="text-red-500 text-xs mt-3 hidden px-4 text-center"></p>
                 </div>
-                <div id="accordion-content-1" class="accordion-content px-4">
-                    <div id="preview-container" class="relative w-full aspect-[210/148] rounded-lg shadow-[6px_6px_15px_rgba(0,0,0,0.3)] flex items-center justify-center text-center transition-all duration-300 hidden">
-                        <canvas id="preview-canvas" class="rounded-lg"></canvas>
-                        <div id="image-controls" class="absolute top-2 right-2 flex gap-2 hidden">
-                            <button id="delete-image-btn" class="bg-red-500 hover:bg-red-600 text-white p-2 rounded-md w-8 h-8 flex items-center justify-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                            </button>
-                        </div>
-                        <div id="zoom-controls" class="absolute bottom-2 right-2 flex flex-col gap-1">
-                            <button id="zoom-in-btn" class="w-8 h-8 flex items-center justify-center bg-black bg-opacity-50 hover:bg-opacity-75 text-white font-bold rounded-full text-lg">+</button>
-                            <button id="zoom-out-btn" class="w-8 h-8 flex items-center justify-center bg-black bg-opacity-50 hover:bg-opacity-75 text-white font-bold rounded-full text-lg">-</button>
-                        </div>
-                    </div>
-                    <div id="image-placeholder" class="flex flex-col items-center justify-center gap-4 py-6 sm:py-10">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                        <div class="flex flex-col gap-2">
-                            <label id="upload-button" for="image-uploader" class="cursor-pointer text-white font-bold py-2 px-4 rounded-lg transition duration-300 shadow-md">Upload a Pic</label>
-                            <button id="find-image-button" class="text-white font-bold py-2 px-4 rounded-lg transition duration-300 shadow-md">Find an Image</button>
-                        </div>
-                    </div>
-                    <input type="file" id="image-uploader" accept="image/*" class="hidden"/>
-                    <p id="image-warning" class="text-red-500 text-sm mt-2 hidden"></p>
+
+                <!-- Front Zoom/Delete Controls (Visible when image loaded) -->
+                <div id="image-controls" class="absolute top-2 right-2 flex gap-2 hidden z-20">
+                     <button id="delete-image-btn" class="bg-red-500/90 text-white p-2 rounded-full shadow-md"><svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                </div>
+                <div id="zoom-controls" class="absolute bottom-2 right-2 flex flex-col gap-1 hidden z-20">
+                    <button id="zoom-in-btn" class="w-8 h-8 flex items-center justify-center bg-black/50 text-white rounded-full">+</button>
+                    <button id="zoom-out-btn" class="w-8 h-8 flex items-center justify-center bg-black/50 text-white rounded-full">-</button>
                 </div>
             </div>
 
-             <!-- Accordion Section 2: Text -->
-            <div class="border rounded-lg overflow-hidden">
-                <div id="accordion-header-2" class="accordion-header flex justify-between items-center p-2 cursor-pointer bg-slate-50 hover:bg-slate-100">
-                    <div class="flex items-center gap-2">
-                        <svg id="tick-2" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-500 hidden" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>
-                        <h3 class="text-sm font-bold text-gray-700">2. Add text & emojis to the image</h3>
-                    </div>
-                    <svg class="accordion-icon w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                </div>
-                <div id="accordion-content-2" class="accordion-content px-4">
-                    <input type="text" id="front-text-input" placeholder="Type here..." class="w-full p-2 bg-slate-50 border border-gray-300 rounded-lg mb-4">
-                    <p id="front-text-profanity-warning" class="text-red-500 text-sm mb-2 hidden"></p>
-                    
-                    <!-- NEW: Centered Icon Controls for Accordion 2 -->
-                    <div class="flex items-center justify-center gap-4">
-                        <!-- Writing Style Button -->
-                        <div class="relative w-10 h-10" title="Writing Style">
-                            <!-- This label is the styled button background -->
-                            <label for="front-font-select" class="w-full h-full p-2.5 rounded-lg bg-white border border-gray-300 cursor-pointer hover:bg-slate-50 flex items-center justify-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z" />
-                                </svg>
-                            </label>
-                            <!-- This select is an invisible layer on top -->
-                            <select id="front-font-select" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                                <option value="'Dancing Script', cursive">Dancing Script</option>
-                                <option value="'Caveat', cursive">Caveat</option>
-                                <option value="'Indie Flower', cursive">Indie Flower</option>
-                                <option value="'Pacifico', cursive">Pacifico</option>
-                                <option value="'Homemade Apple', cursive">Homemade Apple</option>
-                                <option value="'Gochi Hand', cursive" selected>Gochi Hand</option>
-                                <option value="'Dawning of a New Day', cursive">Dawning of a New Day</option>
-                            </select>
-                        </div>
-                        
-                        <!-- Ink Color Button -->
-                        <div class="relative w-10 h-10" title="Ink Colour">
-                             <!-- This label is the styled button background -->
-                            <label for="front-color-picker" class="w-full h-full p-2.5 rounded-lg bg-white border border-gray-300 cursor-pointer hover:bg-slate-50 flex items-center justify-center">
-                                <!-- NEW: Color Palette SVG (copied from section 3) -->
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0L12 2.69z" />
-                                    <path d="M12 22a8 8 0 0 0 5.66-13.66L12 2.69 6.34 8.34A8 8 0 0 0 12 22z" />
-                                    <circle cx="8.5" cy="8.5" r="1.5" fill="#F44336" stroke="none"/>
-                                    <circle cx="15.5" cy="8.5" r="1.5" fill="#4CAF50" stroke="none"/>
-                                    <circle cx="12" cy="12.5" r="1.5" fill="#2196F3" stroke="none"/>
-                                    <circle cx="8.5" cy="16.5" r="1.5" fill="#FFEB3B" stroke="none"/>
-                                    <circle cx="15.5" cy="16.5" r="1.5" fill="#9C27B0" stroke="none"/>
-                                </svg>
-                            </label>
-                            <!-- This input is an invisible layer on top -->
-                            <input type="color" id="front-color-picker" value="#FFFFFF" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                        </div>
-                    </div>
-                     <button id="no-thanks-text-btn" class="mt-4 w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-4 rounded-lg transition-opacity duration-300">No thanks</button>
-                </div>
+            <!-- BACK CANVAS LAYER -->
+            <div id="back-layer" class="canvas-layer hidden-layer rounded-lg overflow-hidden bg-white">
+                 <canvas id="back-preview-canvas" class="w-full h-full"></canvas>
             </div>
 
-            <!-- Accordion Section 3: Message -->
-            <div class="border rounded-lg overflow-hidden">
-                <div id="accordion-header-3" class="accordion-header flex justify-between items-center p-2 cursor-pointer bg-slate-50 hover:bg-slate-100">
-                     <div class="flex items-center gap-2">
-                        <svg id="tick-3" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-500 hidden" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>
-                        <h3 class="text-sm font-bold text-gray-700">3. Write Message on the other side</h3>
-                    </div>
-                    <svg class="accordion-icon w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                </div>
-                <div id="accordion-content-3" class="accordion-content px-4">
-                    
-                    <!-- NEW: 2-Column Layout -->
-                    <div class="flex flex-col md:flex-row gap-4">
+            <!-- FLIP BUTTON (Always visible on stage) -->
+            <button id="flip-card-btn" class="absolute -bottom-5 right-1/2 translate-x-1/2 z-30 bg-white text-slate-800 border border-slate-200 p-3 rounded-full shadow-lg active:scale-90 transition-transform hover:bg-slate-50" title="Flip Card">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+            </button>
 
-                        <!-- NEW: Left Column (Textbox & New Controls) -->
-                        <!-- NEW: 60% width on medium screens -->
-                        <div class="flex-1 flex flex-col md:w-3/5">
-                            
-                            <!-- NEW: Textbox & Controls Wrapper -->
-                            <div class="relative flex flex-col h-full border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500">
-                                <textarea id="text-input" class="w-full p-3 bg-slate-50 rounded-t-lg !border-b-0 focus:ring-0 !outline-none !border-none flex-grow" rows="8"></textarea>
-                                <p id="message-warning" class="text-red-500 text-sm px-3 hidden">Warning: Message is too long.</p>
-                                <p id="message-profanity-warning" class="text-red-500 text-sm px-3 hidden"></p>
-
-                                <!-- NEW: Icon-Only Controls Bar (Inside wrapper) -->
-                                <!-- NEW: Centered controls -->
-                                <div class="flex items-center justify-center gap-4 p-2 bg-slate-50 rounded-b-lg border-t border-slate-200">
-                                    
-                                    <!-- Writing Style Button -->
-                                    <div class="relative w-10 h-10" title="Writing Style">
-                                        <label for="font-select" class="w-full h-full p-2.5 rounded-lg bg-white border border-gray-300 cursor-pointer hover:bg-slate-50 flex items-center justify-center">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z" />
-                                            </svg>
-                                        </label>
-                                        <select id="font-select" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                                            <option value="'Dancing Script', cursive">Dancing Script</option>
-                                            <option value="'Caveat', cursive">Caveat</option>
-                                            <option value="'Indie Flower', cursive">Indie Flower</option>
-                                            <option value="'Pacifico', cursive">Pacifico</option>
-                                            <option value="'Homemade Apple', cursive">Homemade Apple</option>
-                                            <option value="'Gochi Hand', cursive" selected>Gochi Hand</option>
-                                            <option value="'Dawning of a New Day', cursive">Dawning of a New Day</option>
-                                        </select>
-                                    </div>
-                                    
-                                    <!-- Font Size Button -->
-                                    <div class="relative w-10 h-10" title="Font Size">
-                                        <label for="font-size-select" class="w-full h-full p-2.5 rounded-lg bg-white border border-gray-300 cursor-pointer hover:bg-slate-50 flex items-center justify-center">
-                                            <!-- NEW: "A" Icon -->
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                                <path d="M7 20v-6h10v6"/>
-                                                <path d="M12 4 4 20"/>
-                                                <path d="M12 4l8 16"/>
-                                                <path d="m8 12 8 0"/>
-                                            </svg>
-                                        </label>
-                                        <select id="font-size-select" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                                            <option value="12">12px</option>
-                                            <option value="16" selected>16px</option>
-                                            <option value="20">20px</option>
-                                            <option value="24">24px</option>
-                                            <option value="28">28px</option>
-                                            <option value="32">32px</option>
-                                            <option value="40">40px</option>
-                                        </select>
-                                    </div>
-                                    
-                                    <!-- Ink Color Button -->
-                                    <div class="relative w-10 h-10" title="Ink Colour">
-                                        <label for="color-picker" class="w-full h-full p-2.5 rounded-lg bg-white border border-gray-300 cursor-pointer hover:bg-slate-50 flex items-center justify-center">
-                                            <!-- NEW: Color Palette SVG with color -->
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0L12 2.69z" />
-                                                <path d="M12 22a8 8 0 0 0 5.66-13.66L12 2.69 6.34 8.34A8 8 0 0 0 12 22z" />
-                                                <!-- Adding color dots -->
-                                                <circle cx="8.5" cy="8.5" r="1.5" fill="#F44336" stroke="none"/>
-                                                <circle cx="15.5" cy="8.5" r="1.5" fill="#4CAF50" stroke="none"/>
-                                                <circle cx="12" cy="12.5" r="1.5" fill="#2196F3" stroke="none"/>
-                                                <circle cx="8.5" cy="16.5" r="1.5" fill="#FFEB3B" stroke="none"/>
-                                                <circle cx="15.5" cy="16.5" r="1.5" fill="#9C27B0" stroke="none"/>
-                                            </svg>
-                                        </label>
-                                        <input type="color" id="color-picker" value="#1f2937" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                                    </div>
-                                    
-                                </div>
-                            </div>
-                        </div>
-
-
-                        <!-- NEW: Right Column (AI Assistant) -->
-                        <!-- NEW: 40% width on medium screens -->
-                        <div class="md:w-2/5">
-                            <div id="ai-assistant-container" class="p-3 bg-slate-100 rounded-lg border border-slate-200">
-                                <h4 class="text-sm font-bold text-gray-700 mb-2">✨ AI Message Assistant</h4>
-                                <div class="flex flex-col gap-3">
-                                    <div>
-                                        <label for="ai-recipient" class="block text-xs font-medium text-gray-600 mb-1">Who is it for?</label>
-                                        <input type="text" id="ai-recipient" placeholder="e.g., Mum, my friend Sarah" class="w-full p-2 bg-white border border-gray-300 rounded-md text-sm">
-                                    </div>
-                                    <div class="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label for="ai-topic" class="block text-xs font-medium text-gray-600 mb-1">What's on your mind?</label>
-                                            <select id="ai-topic" class="w-full p-2 bg-white border border-gray-300 rounded-md text-sm">
-                                                <option>Having an awesome time</option>
-                                                <option>Promised I'd write</option>
-                                                <option>How are you doing?</option>
-                                                <option>I'm bored</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label for="ai-tone" class="block text-xs font-medium text-gray-600 mb-1">What's the tone?</label>
-                                            <select id="ai-tone" class="w-full p-2 bg-white border border-gray-300 rounded-md text-sm">
-                                                <option>Funny</option>
-                                                <option>Heartfelt</option>
-                                                <option>Casual</option>
-                                                <option>Excited</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <!-- This button will be styled by js/app.js -->
-                                    <button id="ai-generate-btn" class="w-full font-bold py-2 px-3 rounded-lg text-sm flex items-center justify-center gap-2 transition duration-300 shadow-md">
-                                        <span class="btn-text">Generate Message</span>
-                                        <div class="loader-small hidden"></div>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Accordion Section 4: Address -->
-            <div class="border rounded-lg overflow-hidden">
-                 <div id="accordion-header-4" class="accordion-header flex justify-between items-center p-2 cursor-pointer bg-slate-50 hover:bg-slate-100">
-                    <div class="flex items-center gap-2">
-                        <svg id="tick-4" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-500 hidden" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>
-                        <h3 class="text-sm font-bold text-gray-700">4. Add Address</h3>
-                    </div>
-                    <svg class="accordion-icon w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                </div>
-                <div id="accordion-content-4" class="accordion-content px-4">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <input type="text" id="address-name" placeholder="Recipient Name" class="p-2 bg-slate-50 border border-gray-300 rounded-lg" required>
-                        <input type="text" id="address-line1" placeholder="Address Line 1" class="p-2 bg-slate-50 border border-gray-300 rounded-lg" required>
-                        <input type="text" id="address-line2" placeholder="Address Line 2 (Optional)" class="p-2 bg-slate-50 border border-gray-300 rounded-lg">
-                        <input type="text" id="address-city" placeholder="City" class="p-2 bg-slate-50 border border-gray-300 rounded-lg" required>
-                        <input type="text" id="address-postcode" placeholder="Postcode / ZIP" class="p-2 bg-slate-50 border border-gray-300 rounded-lg" required>
-                        <div>
-                            <input type="text" id="address-country" value="UK" class="p-2 bg-gray-200 border border-gray-300 rounded-lg w-full" disabled>
-                            <p class="text-xs text-gray-500 mt-1">Only available in the United Kingdom</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Accordion Section 5: Preview & Send -->
-            <div class="border rounded-lg overflow-hidden">
-                <div id="accordion-header-5" class="accordion-header flex justify-between items-center p-2 bg-slate-50">
-                    <h3 class="text-sm font-bold text-gray-700">5. Preview & Send</h3>
-                </div>
-                <div id="accordion-content-5" class="accordion-content px-4">
-                    <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                        <div class="w-full sm:w-1/2">
-                            <h4 class="text-center font-semibold mb-2">Front Preview</h4>
-                            <div id="final-preview-front-container" class="aspect-[210/148] bg-white rounded-lg shadow-md relative">
-                                <img id="final-preview-front" class="w-full h-full object-cover rounded-lg cursor-pointer">
-                            </div>
-                        </div>
-                        <div class="w-full sm:w-1/2">
-                            <h4 class="text-center font-semibold mb-2">Back Preview</h4>
-                             <div id="final-preview-back-container" class="aspect-[210/148] bg-white rounded-lg shadow-md relative"><img id="final-preview-back" class="w-full h-full object-cover rounded-lg cursor-pointer"></div>
-                        </div>
-                    </div>
-                    <button id="send-postcard-btn" class="w-full mt-6 text-white font-bold py-3 px-4 rounded-lg transition duration-300 shadow-md flex items-center justify-center gap-2">
-                        <span class="btn-text">Send Postcard</span>
-                    </button>
-                </div>
-            </div>
-        </main>
+        </div>
+        <input type="file" id="image-uploader" accept="image/*" class="hidden"/>
     </div>
 
-    <!-- SENDER DETAILS MODAL -->
+    <!-- TOOLS PANEL (Slide up) -->
+    <div id="tools-container" class="flex-none bg-white border-t border-slate-200 z-20 w-full max-h-[40vh] overflow-y-auto no-scrollbar relative">
+        
+        <!-- 1. PHOTO TOOLS -->
+        <div id="tool-panel-photo" class="tool-panel p-4 text-center">
+            <p class="text-sm text-gray-500 mb-3">Change or adjust your photo</p>
+            <div class="flex justify-center gap-3">
+                 <label for="image-uploader" class="cursor-pointer bg-blue-100 text-blue-700 font-medium py-2 px-4 rounded-lg text-sm">Upload New</label>
+                 <button id="tool-search-btn" class="bg-slate-100 text-slate-700 font-medium py-2 px-4 rounded-lg text-sm">Search Image</button>
+            </div>
+        </div>
+
+        <!-- 2. FRONT TEXT TOOLS -->
+        <div id="tool-panel-text" class="tool-panel p-4">
+            <div class="flex flex-col gap-3">
+                <input type="text" id="front-text-input" placeholder="Add text to image..." class="w-full p-2 bg-slate-50 border border-gray-300 rounded-lg text-sm">
+                <p id="front-text-profanity-warning" class="text-red-500 text-xs hidden"></p>
+                
+                <!-- Simplified Centered Icons -->
+                <div class="flex items-center justify-center gap-6">
+                    <!-- Font Style -->
+                    <div class="relative w-10 h-10">
+                        <label class="w-full h-full flex items-center justify-center bg-slate-100 rounded-lg cursor-pointer">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z" /></svg>
+                        </label>
+                        <select id="front-font-select" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                            <option value="'Dancing Script', cursive">Dancing Script</option>
+                            <option value="'Caveat', cursive">Caveat</option>
+                            <option value="'Indie Flower', cursive">Indie Flower</option>
+                            <option value="'Pacifico', cursive">Pacifico</option>
+                            <option value="'Homemade Apple', cursive">Homemade Apple</option>
+                            <option value="'Gochi Hand', cursive" selected>Gochi Hand</option>
+                            <option value="'Dawning of a New Day', cursive">Dawning of a New Day</option>
+                        </select>
+                    </div>
+                    <!-- Color -->
+                    <div class="relative w-10 h-10">
+                        <label class="w-full h-full flex items-center justify-center bg-slate-100 rounded-lg cursor-pointer">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0L12 2.69z" />
+                                <circle cx="8.5" cy="8.5" r="1.5" fill="#F44336" stroke="none"/><circle cx="15.5" cy="8.5" r="1.5" fill="#4CAF50" stroke="none"/><circle cx="12" cy="12.5" r="1.5" fill="#2196F3" stroke="none"/>
+                            </svg>
+                        </label>
+                        <input type="color" id="front-color-picker" value="#FFFFFF" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                    </div>
+                </div>
+                <button id="clear-front-text-btn" class="text-xs text-slate-400 underline text-center mt-1">Clear Text</button>
+            </div>
+        </div>
+
+        <!-- 3. MESSAGE TOOLS -->
+        <div id="tool-panel-message" class="tool-panel p-4">
+             <!-- AI Assistant Toggle -->
+             <div id="ai-assistant-container" class="mb-3 bg-blue-50 p-2 rounded-lg border border-blue-100 hidden">
+                <div class="flex gap-2 mb-2">
+                    <input type="text" id="ai-recipient" placeholder="Who is it for?" class="flex-1 p-2 text-xs border rounded">
+                    <select id="ai-topic" class="flex-1 p-2 text-xs border rounded"><option>Having fun</option><option>Miss you</option><option>Weather is great</option></select>
+                </div>
+                <div class="flex gap-2">
+                     <select id="ai-tone" class="flex-1 p-2 text-xs border rounded"><option>Funny</option><option>Warm</option><option>Excited</option></select>
+                     <button id="ai-generate-btn" class="bg-blue-600 text-white text-xs font-bold px-3 py-2 rounded flex items-center gap-1"><span class="btn-text">Write for me</span><div class="loader-small hidden"></div></button>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-3">
+                <textarea id="text-input" class="w-full p-3 bg-slate-50 border border-gray-300 rounded-lg text-sm h-24" placeholder="Write your message here..."></textarea>
+                <p id="message-warning" class="text-red-500 text-xs hidden">Message too long</p>
+                <p id="message-profanity-warning" class="text-red-500 text-xs hidden"></p>
+                
+                <!-- Message Styling Icons -->
+                <div class="flex items-center justify-center gap-6">
+                    <!-- Font -->
+                     <div class="relative w-10 h-10">
+                        <label class="w-full h-full flex items-center justify-center bg-slate-100 rounded-lg cursor-pointer">
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z" /></svg>
+                        </label>
+                        <select id="font-select" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                             <option value="'Gochi Hand', cursive" selected>Gochi Hand</option>
+                             <option value="'Dancing Script', cursive">Dancing Script</option>
+                             <option value="'Caveat', cursive">Caveat</option>
+                             <option value="'Indie Flower', cursive">Indie Flower</option>
+                             <option value="'Pacifico', cursive">Pacifico</option>
+                        </select>
+                    </div>
+                    <!-- Size -->
+                    <div class="relative w-10 h-10">
+                        <label class="w-full h-full flex items-center justify-center bg-slate-100 rounded-lg cursor-pointer">
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 20v-6h10v6"/><path d="M12 4 4 20"/><path d="M12 4l8 16"/><path d="m8 12 8 0"/></svg>
+                        </label>
+                        <select id="font-size-select" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                            <option value="12">12px</option><option value="16" selected>16px</option><option value="20">20px</option><option value="24">24px</option>
+                        </select>
+                    </div>
+                    <!-- Color -->
+                     <div class="relative w-10 h-10">
+                        <label class="w-full h-full flex items-center justify-center bg-slate-100 rounded-lg cursor-pointer">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0L12 2.69z" /><circle cx="8.5" cy="8.5" r="1.5" fill="#F44336" stroke="none"/><circle cx="15.5" cy="8.5" r="1.5" fill="#4CAF50" stroke="none"/><circle cx="12" cy="12.5" r="1.5" fill="#2196F3" stroke="none"/></svg>
+                        </label>
+                        <input type="color" id="color-picker" value="#1f2937" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. ADDRESS TOOLS -->
+        <div id="tool-panel-address" class="tool-panel p-4">
+            <div class="grid grid-cols-1 gap-3">
+                <input type="text" id="address-name" placeholder="Recipient Name" class="p-2 bg-slate-50 border border-gray-300 rounded-lg text-sm" required>
+                <input type="text" id="address-line1" placeholder="Address Line 1" class="p-2 bg-slate-50 border border-gray-300 rounded-lg text-sm" required>
+                <input type="text" id="address-line2" placeholder="Address Line 2" class="p-2 bg-slate-50 border border-gray-300 rounded-lg text-sm">
+                <div class="flex gap-2">
+                    <input type="text" id="address-city" placeholder="City" class="w-1/2 p-2 bg-slate-50 border border-gray-300 rounded-lg text-sm" required>
+                    <input type="text" id="address-postcode" placeholder="Postcode" class="w-1/2 p-2 bg-slate-50 border border-gray-300 rounded-lg text-sm" required>
+                </div>
+                <input type="text" id="address-country" value="UK" class="p-2 bg-gray-200 border border-gray-300 rounded-lg text-sm text-gray-500" disabled>
+            </div>
+        </div>
+
+        <!-- 5. SEND TOOLS -->
+        <div id="tool-panel-send" class="tool-panel p-4">
+            <div class="text-center">
+                <h3 class="text-lg font-bold mb-2">Ready to Send?</h3>
+                <p class="text-sm text-gray-500 mb-4">We'll print and post this card for you.</p>
+                <button id="send-postcard-btn" class="w-full bg-green-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg active:scale-95 transition-transform">Send Postcard Now</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- BOTTOM NAVIGATION BAR -->
+    <nav id="bottom-nav" class="flex-none bg-white border-t border-gray-200 pb-safe">
+        <div class="flex justify-around items-center h-16">
+            <button class="nav-item flex flex-col items-center justify-center w-full h-full text-blue-600 active" data-tab="photo">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                <span class="text-[10px] font-medium">Photo</span>
+            </button>
+            <button class="nav-item flex flex-col items-center justify-center w-full h-full text-gray-400 hover:text-gray-600" data-tab="text">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                <span class="text-[10px] font-medium">Text</span>
+            </button>
+            <button class="nav-item flex flex-col items-center justify-center w-full h-full text-gray-400 hover:text-gray-600" data-tab="message">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                <span class="text-[10px] font-medium">Message</span>
+            </button>
+            <button class="nav-item flex flex-col items-center justify-center w-full h-full text-gray-400 hover:text-gray-600" data-tab="address">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                <span class="text-[10px] font-medium">Address</span>
+            </button>
+            <button class="nav-item flex flex-col items-center justify-center w-full h-full text-gray-400 hover:text-gray-600" data-tab="send">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                <span class="text-[10px] font-medium">Send</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Modals (Same as before, essentially) -->
+    <!-- Sender Modal -->
      <div id="sender-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
         <div id="sender-details-view" class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm flex flex-col gap-4">
             <div class="flex justify-between items-center">
@@ -389,7 +295,7 @@
         </div>
     </div>
 
-    <!-- PIXABAY SEARCH MODAL -->
+    <!-- Search Modal -->
     <div id="search-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] flex flex-col">
             <div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">Search for an Image</h3><button id="close-search-modal-btn" class="text-2xl leading-none">&times;</button></div>
@@ -401,15 +307,7 @@
             <div id="search-results" class="flex-grow overflow-y-auto min-h-0"></div>
         </div>
     </div>
-    
-    <!-- ZOOM MODAL -->
-    <div id="zoom-modal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center p-4 z-50">
-        <img id="zoomed-image" src="" class="max-w-[90vw] max-h-[90vh] object-contain">
-        <button id="close-zoom-modal-btn" class="absolute top-4 right-4 text-white text-3xl font-bold">&times;</button>
-    </div>
 
-    <!-- FIX: Point to the correct JS file -->
     <script src="js/app.js" type="module"></script>
 </body>
 </html>
-
