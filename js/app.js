@@ -1,4 +1,4 @@
-// --- FIX: Embedding config directly to bypass import path issues ---
+// --- CONFIGURATION (Embedded to prevent import errors) ---
 const fallbackConfig = {
     content: {
         pageTitle: "SixStarCruises - Send Free Postcards",
@@ -634,45 +634,28 @@ function drawCoverImage(ctx, img, canvasWidth, canvasHeight, offsetX, offsetY, z
 function drawCleanFrontOnContext(ctx, width, height, bleedPx = 0) {
      if (appState.uploadedImage) {
         ctx.save();
-        
         const effectiveScale = (appState.isPortrait && width > height) ? 
-            height / dom.previewCanvas.el.height : // Portrait: Compare long sides
-            width / dom.previewCanvas.el.width;   // Landscape: Compare long sides
-
+            height / dom.previewCanvas.el.height : 
+            width / dom.previewCanvas.el.width; 
         const scaledOffsetX = appState.imageOffsetX * effectiveScale;
         const scaledOffsetY = appState.imageOffsetY * effectiveScale;
-        
-        // Draw on full width/height to fill the bleed area
         drawCoverImage(ctx, appState.uploadedImage, width, height, scaledOffsetX, scaledOffsetY, appState.imageZoom);
-
         ctx.restore();
     }
     if (appState.frontText.text) {
         const { text, font, size, color, x, y, rotation, width: textWidth } = appState.frontText;
-        
-        // --- FIX: Correct the scale calculation for Portrait vs Landscape ---
-        // This calculation ensures the text scales relative to the correct axis.
         const effectiveScale = (appState.isPortrait && width > height) ? 
-            height / dom.previewCanvas.el.height : // Portrait: Compare long sides
-            width / dom.previewCanvas.el.width;   // Landscape: Compare long sides
-        // --- END FIX ---
-
+            height / dom.previewCanvas.el.height : 
+            width / dom.previewCanvas.el.width;   
         ctx.save();
         ctx.fillStyle = color;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        
-        // The text must be offset by the bleed
         const textX = (x * effectiveScale) + bleedPx;
         const textY = (y * effectiveScale) + bleedPx;
-
         ctx.translate(textX, textY);
         ctx.rotate(rotation * Math.PI / 180);
-        
-        const scaledSize = size * effectiveScale;
-        const scaledWidth = textWidth * effectiveScale;
-        
-        drawWrappedText(ctx, text, 0, 0, scaledWidth, scaledSize * 1.2, `${scaledSize}px ${font}`);
+        drawWrappedText(ctx, text, 0, 0, textWidth * effectiveScale, size * effectiveScale * 1.2, `${size * effectiveScale}px ${font}`);
         ctx.restore();
     }
 }
@@ -685,38 +668,7 @@ function drawPreviewCanvas() {
     if (appState.uploadedImage) {
         drawCoverImage(ctx, appState.uploadedImage, canvas.width, canvas.height, appState.imageOffsetX, appState.imageOffsetY, appState.imageZoom);
     }
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([5, 5]);
-
-    // --- FIX 1: Set safety margin to 3mm inside core ---
-    // This calculation is now based on the assumption that the preview-canvas *is* the core area.
-    // So we calculate the ratio of 3mm to the core dimension.
-    const safetyMarginMM = 3; 
-    const coreWidthMM = postcardConfig.print.a5WidthMM - (postcardConfig.print.bleedMM * 2);
-    const coreHeightMM = postcardConfig.print.a5HeightMM - (postcardConfig.print.bleedMM * 2);
-
-    // Calculate ratio of (Safety Margin) / (Core Dimension)
-    // We use the A5 dimensions (landscape) to determine which is width/height
-    const safetyRatioX = safetyMarginMM / coreWidthMM;
-    const safetyRatioY = safetyMarginMM / coreHeightMM;
-    
-    // Apply ratio to the canvas dimensions
-    const canvasSafetyX = appState.isPortrait ? safetyRatioY : safetyRatioX;
-    const canvasSafetyY = appState.isPortrait ? safetyRatioX : safetyRatioY;
-
-    const safetyMarginX = canvasSafetyX * canvas.width;
-    const safetyMarginY = canvasSafetyY * canvas.height;
-    // --- END FIX 1 ---
-    
-    ctx.strokeRect(safetyMarginX, safetyMarginY, canvas.width - 2 * safetyMarginX, canvas.height - 2 * safetyMarginY);
-    ctx.restore();
     if (appState.frontText.text) {
-        if (appState.frontText.x === null) {
-            appState.frontText.x = canvas.width / 2;
-            appState.frontText.y = canvas.height / 2;
-        }
         const { text, font, size, color, x, y, rotation, width: textWidth } = appState.frontText;
         ctx.save();
         ctx.fillStyle = color;
@@ -726,26 +678,26 @@ function drawPreviewCanvas() {
         ctx.rotate(rotation * Math.PI / 180);
         drawWrappedText(ctx, text, 0, 0, textWidth, size * 1.2, `${size}px ${font}`);
         ctx.restore();
+        
         const metrics = getTextMetrics(ctx);
-        if (!metrics) return;
-        const handles = getHandlePositions(metrics);
-        ctx.save();
-        ctx.translate(metrics.x, metrics.y);
-        ctx.rotate(appState.frontText.rotation * Math.PI / 180);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([5, 5]);
-        ctx.strokeRect(metrics.box.x, metrics.box.y, metrics.box.width, metrics.box.height);
-        ctx.restore();
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.lineWidth = 1;
-        Object.values(handles).forEach(handle => {
-            ctx.beginPath();
-            ctx.arc(handle.x, handle.y, postcardConfig.print.handleRadius, 0, 2 * Math.PI);
-            ctx.fill();
-            ctx.stroke();
-        });
+        if (metrics) {
+             const handles = getHandlePositions(metrics);
+             ctx.save();
+             ctx.translate(metrics.x, metrics.y);
+             ctx.rotate(appState.frontText.rotation * Math.PI / 180);
+             ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+             ctx.lineWidth = 1;
+             ctx.setLineDash([5, 5]);
+             ctx.strokeRect(metrics.box.x, metrics.box.y, metrics.box.width, metrics.box.height);
+             ctx.restore();
+             ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+             ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+             Object.values(handles).forEach(handle => {
+                ctx.beginPath();
+                ctx.arc(handle.x, handle.y, 8, 0, 2 * Math.PI);
+                ctx.fill(); ctx.stroke();
+             });
+        }
     }
 }
 
@@ -757,8 +709,7 @@ function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, font) {
     for (let n = 0; n < words.length; n++) {
         const testLine = line + words[n] + ' ';
         const metrics = ctx.measureText(testLine);
-        const testWidth = metrics.width;
-        if (testWidth > maxWidth && n > 0) {
+        if (metrics.width > maxWidth && n > 0) {
             lines.push(line);
             line = words[n] + ' ';
         } else {
@@ -766,8 +717,7 @@ function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, font) {
         }
     }
     lines.push(line);
-    const totalHeight = lines.length * lineHeight;
-    let currentY = y - (totalHeight / 2) + (lineHeight / 2);
+    let currentY = y - (lines.length * lineHeight / 2) + (lineHeight / 2);
     for (let i = 0; i < lines.length; i++) {
         ctx.fillText(lines[i].trim(), x, currentY);
         currentY += lineHeight;
@@ -775,266 +725,62 @@ function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, font) {
 }
 
 function getTextMetrics(ctx) {
-    const { text, font, size, x, y, width: textWidth } = appState.frontText;
+    const { text, font, size, width: textWidth } = appState.frontText;
     if (!text) return null;
     ctx.font = `${size}px ${font}`;
-    const words = text.split(' ');
-    let line = '';
-    let lines = [];
-    for(let n = 0; n < words.length; n++) {
-        let testLine = line + words[n] + ' ';
-        if (ctx.measureText(testLine).width > textWidth && n > 0) {
-            lines.push(line);
-            line = words[n] + ' ';
-        } else {
-            line = testLine;
-        }
-    }
-    lines.push(line);
-    const height = lines.length * size * 1.2;
-    const box = {
-        x: -textWidth / 2,
-        y: -height / 2,
-        width: textWidth,
-        height: height
-    };
-    return { x, y, box };
+    const height = size * 1.2; 
+    const box = { x: -textWidth / 2, y: -height / 2, width: textWidth, height: height }; 
+    return { x: appState.frontText.x, y: appState.frontText.y, box }; 
 }
 
 function getHandlePositions(metrics) {
-    if (!metrics) return {};
     const { x, y, box } = metrics;
-    const rotationRad = appState.frontText.rotation * Math.PI / 180;
-    const cos = Math.cos(rotationRad);
-    const sin = Math.sin(rotationRad);
-    const resizeHandleRelX = box.x + box.width;
-    const resizeHandleRelY = box.y + box.height;
-    const rotateHandleRelX = box.x + box.width / 2;
-    const rotateHandleRelY = box.y - 20;
-    const widthHandleRelX = box.x + box.width;
-    const widthHandleRelY = box.y + box.height / 2;
     return {
-        size: {
-            x: x + (resizeHandleRelX * cos - resizeHandleRelY * sin),
-            y: y + (resizeHandleRelY * sin + resizeHandleRelY * cos)
-        },
-        rotate: {
-            x: x + (rotateHandleRelX * cos - rotateHandleRelY * sin),
-            y: y + (rotateHandleRelY * sin + rotateHandleRelY * cos)
-        },
-            width: {
-            x: x + (widthHandleRelX * cos - widthHandleRelY * sin),
-            y: y + (widthHandleRelY * sin + widthHandleRelY * cos)
-        }
+        rotate: { x: x, y: y - 50 }, 
+        size: { x: x + box.width/2 + 20, y: y } 
     };
 }
 
-function typePlaceholder(element, text) {
-    if (appState.messagePlaceholderInterval) clearInterval(appState.messagePlaceholderInterval);
-    let i = 0;
-    element.placeholder = ""; 
-    appState.messagePlaceholderInterval = setInterval(() => {
-        if (i < text.length) {
-            element.placeholder += text.charAt(i++);
-        } else {
-            clearInterval(appState.messagePlaceholderInterval);
-        }
-    }, 80);
-}
-
-function toggleAccordion(header, forceOpen = null) {
-    const content = header.nextElementSibling;
-    const isOpen = content.classList.contains('open');
-    if (forceOpen === true && !isOpen) {
-        content.classList.add('open');
-        header.classList.add('open');
-    } else if (forceOpen === false && isOpen) {
-        content.classList.remove('open');
-        header.classList.remove('open');
-    } else if (forceOpen === null) {
-        content.classList.toggle('open');
-        header.classList.toggle('open');
-    }
-    const wasOpened = content.classList.contains('open');
-    if (wasOpened) {
-            if (header.id.startsWith('accordion-header-5')) debouncedUpdateAllPreviews();
-            if (header.id.startsWith('accordion-header-3') && dom.textInput.value === '') {
-            typePlaceholder(dom.textInput, "Write your message or copy and paste here..");
-        }
-    }
-}
-
-async function resizeImage(base64Str) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.src = base64Str;
-        img.onload = () => {
-            const maxDimension = 2400;
-            let { width, height } = img;
-            if (width > maxDimension || height > maxDimension) {
-                if (width > height) {
-                    height = Math.round((height * maxDimension) / width);
-                    width = maxDimension;
-                } else {
-                    width = Math.round((width * maxDimension) / height);
-                    height = maxDimension;
-                }
-            }
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL('image/jpeg', 0.8));
-        };
-        img.onerror = (error) => {
-            console.error("Error loading image for resizing:", error);
-            reject(error);
-        };
-    });
-}
-
-function updatePostcardLayout() {
-    const canvas = dom.previewCanvas.el;
-    const container = dom.previewContainer;
-    container.classList.remove('aspect-[210/148]', 'aspect-[148/210]');
-    if (appState.isPortrait) {
-        container.classList.add('aspect-[148/210]');
-    } else {
-        container.classList.add('aspect-[210/148]');
-    }
-    requestAnimationFrame(() => {
-        canvas.width = container.clientWidth;
-        canvas.height = container.clientHeight;
-        drawPreviewCanvas();
-        debouncedUpdateAllPreviews();
-    });
-}
-
-function resetImagePanAndZoom() {
-    appState.imageOffsetX = 0;
-    appState.imageOffsetY = 0;
-    appState.imageZoom = 1.0;
-}
-
-async function validateAndSetImage(src) {
-    const tempImage = new Image();
-    await new Promise((resolve, reject) => { 
-        tempImage.crossOrigin = "Anonymous";
-        tempImage.onload = resolve; 
-        tempImage.onerror = reject; 
-        tempImage.src = src; 
-    });
-    if (tempImage.width < postcardConfig.validation.minImageDimension || tempImage.height < postcardConfig.validation.minImageDimension) {
-        dom.imageWarning.textContent = `For best quality, please upload an image that is at least ${postcardConfig.validation.minImageDimension}px on its shortest side.`;
-        dom.imageWarning.classList.remove('hidden');
-        dom.imageUploader.value = '';
-        resetImagePreviews();
-    } else {
-        dom.imageWarning.classList.add('hidden');
-        appState.uploadedImage = tempImage;
-        appState.imageSrcForResend = src;
-        appState.isPortrait = tempImage.height > tempImage.width;
-        resetImagePanAndZoom();
-        dom.imagePlaceholder.classList.add('hidden');
-        dom.previewContainer.classList.remove('hidden');
-        dom.imageControls.classList.remove('hidden');
-        dom.ticks.one.classList.remove('hidden');
-        updatePostcardLayout();
-    }
-}
-
-function resetImagePreviews() {
-    appState.uploadedImage = null;
-    appState.imageSrcForResend = null;
-    appState.isPortrait = false;
-    resetImagePanAndZoom();
-    appState.frontText.text = '';
-    appState.frontText.x = null;
-    appState.frontText.y = null;
-    dom.frontText.input.value = '';
-    dom.frontText.profanityWarning.classList.add('hidden');
-    dom.ticks.two.classList.add('hidden');
-    dom.noThanksTextBtn.classList.remove('opacity-0', 'pointer-events-none');
-    const container = dom.previewContainer;
-    container.classList.add('hidden');
-    dom.imagePlaceholder.classList.remove('hidden');
-    dom.imageControls.classList.add('hidden');
-    dom.ticks.one.classList.add('hidden');
-    if (dom.finalPreviewFront.src) { URL.revokeObjectURL(dom.finalPreviewFront.src); dom.finalPreviewFront.src = ''; }
-    updatePostcardLayout();
-    debouncedUpdateAllPreviews();
-}
-
-/**
- * Wraps a single line of address text to a specified character limit.
- * @param {CanvasRenderingContext2D} ctx - The canvas context.
- * @param {string} text - The line of text to wrap.
- * @param {number} maxWidthPx - The maximum pixel width for a line.
- * @returns {string[]} An array of wrapped lines.
- */
-function wrapAddressLine(ctx, text, maxWidthPx) {
-    if (!text) return [];
+// Text Interaction
+let interactionMode = 'none';
+let startState = {};
+const handleInteractionStart = (e) => {
+    if (e.type === 'touchstart') { }
+    const rect = dom.previewCanvas.el.getBoundingClientRect();
+    const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+    const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+    const mouseX = clientX - rect.left;
+    const mouseY = clientY - rect.top;
     
-    let lines = [];
-    let currentLine = '';
-    const words = text.split(' ');
+    interactionMode = 'draggingImage';
+    startState = {
+        mouseX, mouseY,
+        imageOffsetX: appState.imageOffsetX,
+        imageOffsetY: appState.imageOffsetY
+    };
+};
 
-    for (let i = 0; i < words.length; i++) {
-        const word = words[i];
-        const testLine = currentLine + word + ' ';
-        const metrics = ctx.measureText(testLine);
-        
-        if (metrics.width > maxWidthPx && i > 0) {
-            lines.push(currentLine.trim());
-            currentLine = word + ' ';
-        } else {
-            currentLine = testLine;
-        }
-    }
-    lines.push(currentLine.trim());
-    return lines;
-}
+const handleInteractionMove = (e) => {
+     if (interactionMode === 'none') return;
+     e.preventDefault();
+     const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+     const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+     const rect = dom.previewCanvas.el.getBoundingClientRect();
+     const mouseX = clientX - rect.left;
+     const mouseY = clientY - rect.top;
+
+     if (interactionMode === 'draggingImage') {
+         const dx = mouseX - startState.mouseX;
+         const dy = mouseY - startState.mouseY;
+         appState.imageOffsetX = startState.imageOffsetX + dx;
+         appState.imageOffsetY = startState.imageOffsetY + dy;
+         requestAnimationFrame(drawPreviewCanvas);
+     }
+};
+const handleInteractionEnd = () => { interactionMode = 'none'; };
 
 
-async function checkMessageOverflow() {
-    await document.fonts.ready;
-    const tempCanvas = document.createElement('canvas');
-    const tempCtx = tempCanvas.getContext('2d');
-    const finalWidthPx = Math.round((postcardConfig.print.a5WidthMM / 25.4) * postcardConfig.print.dpi);
-    // --- NEW: Use fontSizeSelect and default weight ---
-    const fontSize = dom.fontSizeSelect.value;
-    const fontWeight = '400'; // Default weight
-    const hiResFontSize = fontSize * (finalWidthPx / 504) * 1.2;
-    const fontFamily = dom.fontSelect.value;
-    const lineHeight = hiResFontSize * 1.2;
-    tempCtx.font = `${fontWeight} ${hiResFontSize}px ${fontFamily}`;
-    const messageText = dom.textInput.value;
-    const lines = messageText.split('\n');
-    let totalHeight = 0;
-    const messageMaxWidth = (finalWidthPx / 2) + 70;
-    lines.forEach(line => {
-        const words = line.split(' ');
-        let currentLine = '';
-        for (let i = 0; i < words.length; i++) {
-            const testLine = currentLine + words[i] + ' ';
-            const metrics = tempCtx.measureText(testLine);
-            if (metrics.width > messageMaxWidth && i > 0) {
-                totalHeight += lineHeight;
-                currentLine = words[i] + ' ';
-            } else {
-                currentLine = testLine;
-            }
-        }
-        totalHeight += lineHeight;
-    });
-    const maxTextHeight = Math.round((postcardConfig.print.a5HeightMM / 25.4) * postcardConfig.print.dpi) - (hiResFontSize * 1.2) - 50;
-    if (totalHeight > maxTextHeight) {
-        dom.messageWarning.classList.remove('hidden');
-    } else {
-        dom.messageWarning.classList.add('hidden');
-    }
-}
+// --- FINAL GENERATION LOGIC ---
 
 async function generatePostcardImages({ forEmail = false, includeAddressOnBack = true } = {}) {
     await document.fonts.ready;
@@ -1228,211 +974,30 @@ async function generatePostcardImages({ forEmail = false, includeAddressOnBack =
     return { frontCanvas, backCanvas };
 }
 
-
-async function updateFinalPreviews() {
-    const { frontCanvas, backCanvas } = await generatePostcardImages({ forEmail: true, includeAddressOnBack: true });
-    
-    const frontPreviewContainer = dom.finalPreviewFrontContainer;
-    const backPreviewContainer = dom.finalPreviewBackContainer; // Make sure this ID exists
-    
-    // Adjust preview container aspect ratio based on *email canvas* aspect ratio
-    const emailCanvasRatio = frontCanvas.width / frontCanvas.height;
-    
-    // We adjust the container, the img tag's object-fit will handle the rest
-    if (appState.isPortrait) {
-        frontPreviewContainer.classList.remove('aspect-[210/148]');
-        frontPreviewContainer.classList.add('aspect-[148/210]');
-    } else {
-        frontPreviewContainer.classList.remove('aspect-[148/210]');
-        frontPreviewContainer.classList.add('aspect-[210/148]');
-    }
-    // The back preview should always match the front's orientation
-    if (backPreviewContainer) {
-         if (appState.isPortrait) {
-            backPreviewContainer.classList.remove('aspect-[210/148]');
-            backPreviewContainer.classList.add('aspect-[148/210]');
-        } else {
-            backPreviewContainer.classList.remove('aspect-[148/210]');
-            backPreviewContainer.classList.add('aspect-[210/148]');
-        }
-    }
-    
-    frontCanvas.toBlob(blob => {
-        if (dom.finalPreviewFront.src) URL.revokeObjectURL(dom.finalPreviewFront.src);
-        dom.finalPreviewFront.src = URL.createObjectURL(blob);
-        dom.finalPreviewFront.style.objectFit = 'contain'; // Use contain to show shadow
-    });
-    
-    backCanvas.toBlob(blob => {
-        if (dom.finalPreviewBack.src) URL.revokeObjectURL(dom.finalPreviewBack.src);
-        dom.finalPreviewBack.src = URL.createObjectURL(blob);
-        dom.finalPreviewBack.style.objectFit = 'contain'; // Use contain to show shadow
-    });
-}
-
-// --- NEW: AI Message Generation ---
-async function handleAIAssist() {
-    // --- FIX: Read from the correct DOM elements ---
-    const recipient = dom.aiRecipient.value || 'my friend'; // Use 'my friend' as fallback
-    const topic = dom.aiTopic.value;
-    const tone = dom.aiTone.value;
-    // --- END FIX ---
-
-    // Check if fields are empty
-    if (!topic || !tone) {
-         // This error was being thrown incorrectly. We check on the server.
-         // Let's just use the values, even if one is empty (e.g. default)
-    }
-
-    const btnText = dom.aiGenerateBtn.querySelector('.btn-text');
-    const loader = dom.aiGenerateBtn.querySelector('.loader-small');
-    
-    btnText.textContent = 'Generating...';
-    loader.classList.remove('hidden');
-    dom.aiGenerateBtn.disabled = true;
-
-    try {
-        // --- FIX: Send JSON in the format the API expects ---
-        const response = await fetch(new URL('/api/generate-message', window.location.origin), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                recipient: recipient, 
-                topic: topic, 
-                tone: tone 
-            })
-        });
-        // --- END FIX ---
-
-        const result = await response.json(); // Always parse JSON
-
-        if (!response.ok) {
-            // Throw the error message from the server (e.g., "Missing required fields")
-            throw new Error(result.message || 'Failed to generate message');
-        }
-
-        if (result.message) {
-            dom.textInput.value = result.message;
-            // Trigger input event to update previews and check overflow
-            dom.textInput.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-
-    } catch (error) {
-        console.error('AI Assist Error:', error);
-        // Show the specific error from the server
-        showGlobalError(`AI Assistant failed: ${error.message}`);
-        btnText.textContent = 'Error!';
-        setTimeout(() => {
-             btnText.textContent = 'Generate Message';
-             loader.classList.add('hidden');
-             dom.aiGenerateBtn.disabled = false;
-        }, 2000);
-        return; 
-    }
-
-    // Reset button on success
-    btnText.textContent = 'Generate Message';
-    loader.classList.add('hidden');
-    dom.aiGenerateBtn.disabled = false;
-}
-
-
-async function handleImageSearch() {
-    const query = dom.search.input.value;
-    if (!query) return;
-    if (!postcardConfig.apiKeys.pixabayApiKey) {
-        console.error("Pixabay API Key not available.");
-        // --- NEW: Show user error ---
-        showGlobalError("Image search feature is not configured.");
-        dom.search.modal.style.display = 'none';
-        return;
-    }
-    dom.search.loader.style.display = 'flex';
-    dom.search.resultsContainer.innerHTML = '';
-    try {
-        // --- FIX: Use absolute URL for fetch ---
-        const response = await fetch(`https://pixabay.com/api/?key=${postcardConfig.apiKeys.pixabayApiKey}&q=${encodeURIComponent(query)}&image_type=photo&per_page=21`);
-        if (!response.ok) {
-            throw new Error(`Pixabay API responded with status: ${response.status}`);
-        }
-        const data = await response.json();
-        dom.search.resultsContainer.innerHTML = ''; 
-        if (data.hits && data.hits.length > 0) {
-            data.hits.forEach(photo => {
-                const imgContainer = document.createElement('div');
-                imgContainer.className = 'grid-item';
-                const img = document.createElement('img');
-                img.src = photo.webformatURL;
-                img.alt = photo.tags;
-                img.onload = () => {
-                    if (dom.search.resultsContainer.children.length === data.hits.length) {
-                        new Masonry(dom.search.resultsContainer, {
-                            itemSelector: '.grid-item',
-                            percentPosition: true
-                        });
-                    }
-                };
-                img.addEventListener('click', async () => {
-                    const fullImageResponse = await fetch(photo.largeImageURL);
-                    const imageBlob = await fullImageResponse.blob();
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                        const base64data = reader.result;
-                        validateAndSetImage(base64data);
-                    };
-                    reader.readAsDataURL(imageBlob);
-                    dom.search.modal.style.display = 'none';
-                });
-                imgContainer.appendChild(img);
-                dom.search.resultsContainer.appendChild(imgContainer);
-            });
-        } else {
-            dom.search.resultsContainer.innerHTML = `<p class="text-gray-500 col-span-full text-center">No images found for "${query}".</p>`;
-        }
-    } catch (error) {
-        console.error("Error fetching images from Pixabay:", error);
-        dom.search.resultsContainer.innerHTML = `<p class="text-red-500 col-span-full text-center">Failed to load images. Please try again later.</p>`;
-    } finally {
-        dom.search.loader.style.display = 'none';
-    }
-}
-
 async function handleSendPostcard() {
-    const requiredAddressFields = [dom.addressInputs.name, dom.addressInputs.line1, dom.addressInputs.city, dom.addressInputs.postcode];
-    const allValid = requiredAddressFields.every(input => input.value.trim() !== '');
-    if (!allValid) {
-        // --- FIX: Use custom modal, not alert ---
-        showGlobalError('Please fill in all required recipient address fields.');
-        const firstEmpty = requiredAddressFields.find(input => input.value.trim() === '');
-        if (firstEmpty) {
-            toggleAccordion(document.getElementById('accordion-header-4'), true); // Open address accordion
-            firstEmpty.focus();
-        }
-        return;
-    }
-    const frontIsProfane = await checkForProfanityAPI(dom.frontText.input.value, dom.frontText.profanityWarning);
-    const backIsProfane = await checkForProfanityAPI(dom.textInput.value, dom.messageProfanityWarning);
-    if (frontIsProfane || backIsProfane) {
-        // --- FIX: Use custom modal, not alert ---
-        showGlobalError("Be more friendly - consider revising the text.");
-        return;
-    }
-    dom.sender.modal.style.display = 'flex';
-    dom.sender.nameInput.value = localStorage.getItem('senderName') || '';
-    dom.sender.emailInput.value = localStorage.getItem('senderEmail') || '';
-    
-    // Ensure reCAPTCHA is available
-    if (typeof grecaptcha === 'undefined' || !grecaptcha.render) {
-        showGlobalError("reCAPTCHA failed to load. Please check your connection.");
-        dom.sender.modal.style.display = 'none';
-        return;
-    }
-    
-    if (dom.sender.recaptchaContainer.innerHTML.trim() === '') {
+     const required = ['name', 'line1', 'city', 'postcode'];
+     const valid = required.every(f => dom.addressInputs[f].value.trim());
+     if (!valid) {
+         // --- FIX: Use custom modal, not alert ---
+         showGlobalError('Please fill in all required recipient address fields.');
+         const firstEmpty = requiredAddressFields.find(input => input.value.trim() === '');
+         if (firstEmpty) {
+            //  toggleAccordion(document.getElementById('accordion-header-4'), true); // Open address accordion
+             firstEmpty.focus();
+         }
+         return;
+     }
+     const frontIsProfane = await checkForProfanityAPI(dom.frontText.input.value, dom.frontText.profanityWarning);
+     const backIsProfane = await checkForProfanityAPI(dom.textInput.value, dom.messageProfanityWarning);
+     if (frontIsProfane || backIsProfane) {
+         // --- FIX: Use custom modal, not alert ---
+         showGlobalError("Be more friendly - consider revising the text.");
+         return;
+     }
+     dom.sender.modal.style.display = 'flex';
+     if (typeof grecaptcha !== 'undefined' && dom.sender.recaptchaContainer.innerHTML === '') {
          grecaptcha.render(dom.sender.recaptchaContainer, { 'sitekey' : postcardConfig.apiKeys.recaptchaSiteKey });
-    } else {
-        grecaptcha.reset();
-    }
+     }
 }
 
 async function handleFinalSend() {
@@ -1614,54 +1179,49 @@ function initializePostcardCreator() {
             if (lastDesign.imageSrc) {
                 validateAndSetImage(lastDesign.imageSrc);
             }
-            toggleAccordion(document.getElementById('accordion-header-3'), true);
-            dom.addressInputs.name.focus();
+            // toggleAccordion(document.getElementById('accordion-header-3'), true); // NO LONGER NEEDED
+            if(dom.addressInputs.name) dom.addressInputs.name.focus();
         }
     }
-    dom.accordionHeaders.forEach(header => {
-        if (header.id !== 'accordion-header-5') {
-            header.addEventListener('click', () => toggleAccordion(header, null));
-        }
-    });
-    dom.imageUploader.addEventListener('change', async (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-        event.target.value = '';
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            let imageDataUrl = e.target.result;
-            if (file.size > postcardConfig.validation.maxFileSizeMB * 1024 * 1024) {
-                imageDataUrl = await resizeImage(imageDataUrl);
-            }
-            validateAndSetImage(imageDataUrl);
-        };
-        reader.readAsDataURL(file);
-    });
-    dom.deleteImageBtn.addEventListener('click', resetImagePreviews);
-    dom.zoomInBtn.addEventListener('click', () => {
+    // Accordion logic removed
+    // dom.accordionHeaders.forEach...
+    
+    if(dom.imageUploader) {
+        dom.imageUploader.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            event.target.value = '';
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                let imageDataUrl = e.target.result;
+                if (file.size > postcardConfig.validation.maxFileSizeMB * 1024 * 1024) {
+                    imageDataUrl = await resizeImage(imageDataUrl);
+                }
+                validateAndSetImage(imageDataUrl);
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+    
+    if(dom.deleteImageBtn) dom.deleteImageBtn.addEventListener('click', resetImagePreviews);
+    if(dom.zoomInBtn) dom.zoomInBtn.addEventListener('click', () => {
         appState.imageZoom += 0.1;
         drawPreviewCanvas();
         debouncedUpdateAllPreviews();
     });
-    dom.zoomOutBtn.addEventListener('click', () => {
+    if(dom.zoomOutBtn) dom.zoomOutBtn.addEventListener('click', () => {
         appState.imageZoom = Math.max(1.0, appState.imageZoom - 0.1);
         drawPreviewCanvas();
         debouncedUpdateAllPreviews();
     });
     Object.values(dom.frontText).forEach(el => {
-        if (el.tagName === 'INPUT' || el.tagName === 'SELECT') {
+        if(el && (el.tagName === 'INPUT' || el.tagName === 'SELECT')) {
             el.addEventListener('input', () => {
                 const wasEmpty = !appState.frontText.text;
                 appState.frontText.text = dom.frontText.input.value;
                 appState.frontText.font = dom.frontText.fontSelect.value;
                 appState.frontText.color = dom.frontText.colorPicker.value;
-                if(dom.frontText.input.value.trim() !== '') {
-                    dom.ticks.two.classList.remove('hidden');
-                        dom.noThanksTextBtn.classList.add('opacity-0', 'pointer-events-none');
-                } else {
-                    dom.ticks.two.classList.add('hidden');
-                        dom.noThanksTextBtn.classList.remove('opacity-0', 'pointer-events-none');
-                }
+                // No ticks logic needed
                 if (wasEmpty && appState.frontText.text && dom.previewCanvas.el.width > 0) {
                     appState.frontText.x = dom.previewCanvas.el.width / 2;
                     appState.frontText.y = dom.previewCanvas.el.height / 2;
@@ -1672,181 +1232,19 @@ function initializePostcardCreator() {
             });
         }
     });
-    dom.noThanksTextBtn.addEventListener('click', () => {
-        dom.ticks.two.classList.remove('hidden');
-        toggleAccordion(document.getElementById('accordion-header-2'), false);
-        toggleAccordion(document.getElementById('accordion-header-3'), true);
-    });
-    let interactionMode = 'none';
-    let startState = {};
-    const canvas = dom.previewCanvas.el;
-    const ctx = canvas.getContext('2d');
-    const handleInteractionStart = (e) => {
-        if (e.type === 'touchstart') e.preventDefault();
-        if (!appState.uploadedImage) return;
-        const rect = canvas.getBoundingClientRect();
-        const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
-        const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
-        const mouseX = clientX - rect.left;
-        const mouseY = clientY - rect.top;
-        let isOverText = false;
-        if (appState.frontText.text) {
-            const metrics = getTextMetrics(ctx);
-            if (metrics && metrics.x !== null) {
-                const handles = getHandlePositions(metrics);
-                const distToResize = Math.hypot(mouseX - handles.size.x, mouseY - handles.size.y);
-                const distToRotate = Math.hypot(mouseX - handles.rotate.x, mouseY - handles.rotate.y);
-                const distToWidth = Math.hypot(mouseX - handles.width.x, mouseY - handles.width.y);
-                const dx = mouseX - metrics.x;
-                const dy = mouseY - metrics.y;
-                const rotationRad = -appState.frontText.rotation * Math.PI / 180;
-                const cos = Math.cos(rotationRad);
-                const sin = Math.sin(rotationRad);
-                const transformedMouseX = dx * cos - dy * sin;
-                const transformedMouseY = dx * sin + dy * cos;
-                const box = metrics.box;
-                const isOverBody = (
-                    transformedMouseX >= box.x && transformedMouseX <= box.x + box.width &&
-                    transformedMouseY >= box.y && transformedMouseY <= box.y + box.height
-                );
-                if (distToResize <= postcardConfig.print.handleRadius) {
-                    interactionMode = 'resizing';
-                    isOverText = true;
-                } else if (distToRotate <= postcardConfig.print.handleRadius) {
-                    interactionMode = 'rotating';
-                    isOverText = true;
-                } else if (distToWidth <= postcardConfig.print.handleRadius) {
-                    interactionMode = 'resizingWidth';
-                    isOverText = true;
-                } else if (isOverBody) {
-                    interactionMode = 'draggingText';
-                    isOverText = true;
-                }
-            }
-        }
-        if (!isOverText) {
-            interactionMode = 'draggingImage';
-        }
-        startState = {
-            mouseX, mouseY,
-            ...appState.frontText,
-            imageOffsetX: appState.imageOffsetX,
-            imageOffsetY: appState.imageOffsetY,
-            startAngle: Math.atan2(mouseY - appState.frontText.y, mouseX - appState.frontText.x),
-            startDist: Math.hypot(mouseX - appState.frontText.x, mouseY - appState.frontText.y),
-        };
-    };
-    const handleInteractionMove = (e) => {
-        if (e.type === 'touchmove') e.preventDefault();
-        if (interactionMode === 'none') return;
-        const rect = canvas.getBoundingClientRect();
-        const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
-        const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
-        const mouseX = clientX - rect.left;
-        const mouseY = clientY - rect.top;
-        if (interactionMode === 'draggingText') {
-            canvas.style.cursor = 'move';
-            appState.frontText.x = startState.x + (mouseX - startState.mouseX);
-            appState.frontText.y = startState.y + (mouseY - startState.mouseY);
-        } else if (interactionMode === 'rotating') {
-            canvas.style.cursor = 'grabbing';
-            const currentAngle = Math.atan2(mouseY - startState.y, mouseX - startState.x);
-            const angleDiff = currentAngle - startState.startAngle;
-            appState.frontText.rotation = startState.rotation + (angleDiff * 180 / Math.PI);
-        } else if (interactionMode === 'resizing') {
-            canvas.style.cursor = 'se-resize';
-            const currentDist = Math.hypot(mouseX - startState.x, mouseY - startState.y);
-            const scaleFactor = currentDist / startState.startDist;
-            appState.frontText.size = Math.max(8, startState.size * scaleFactor);
-        } else if (interactionMode === 'resizingWidth') {
-            canvas.style.cursor = 'ew-resize';
-            const rotationRad = -startState.rotation * Math.PI / 180;
-            const cos = Math.cos(rotationRad);
-            const sin = Math.sin(rotationRad);
-            const dx = mouseX - startState.mouseX;
-            const dy = mouseY - startState.mouseY;
-            const projectedDx = dx * cos - dy * sin;
-            appState.frontText.width = Math.max(20, startState.width + (projectedDx * 2));
-        } else if (interactionMode === 'draggingImage') {
-            canvas.style.cursor = 'grabbing';
-            const dx = mouseX - startState.mouseX;
-            const dy = mouseY - startState.mouseY;
-            appState.imageOffsetX = startState.imageOffsetX + dx;
-            appState.imageOffsetY = startState.imageOffsetY + dy;
-        }
-        drawPreviewCanvas();
-    };
-    const handleInteractionEnd = () => {
-        if (interactionMode !== 'none') {
-            interactionMode = 'none';
-            canvas.style.cursor = 'default';
-            debouncedUpdateAllPreviews();
-        }
-    };
-    canvas.addEventListener('mousedown', handleInteractionStart);
-    canvas.addEventListener('mousemove', handleInteractionMove);
-    document.addEventListener('mouseup', handleInteractionEnd);
-    canvas.addEventListener('touchstart', handleInteractionStart);
-    canvas.addEventListener('touchmove', handleInteractionMove);
-    canvas.addEventListener('touchend', handleInteractionEnd);
-    let messageTypingTimer;
-    dom.textInput.addEventListener('input', () => {
-        clearTimeout(messageTypingTimer);
-        messageTypingTimer = setTimeout(() => {
-            if (dom.textInput.value.trim() !== '') {
-                dom.ticks.three.classList.remove('hidden');
-            } else {
-                dom.ticks.three.classList.add('hidden');
-            }
-        }, 3000);
-    });
-    const addressFields = [dom.addressInputs.name, dom.addressInputs.line1, dom.addressInputs.city, dom.addressInputs.postcode];
-    addressFields.forEach(field => {
-        field.addEventListener('input', () => {
-            const allFilled = addressFields.every(f => f.value.trim() !== '');
-            if (allFilled) {
-                dom.ticks.four.classList.remove('hidden');
-            } else {
-                dom.ticks.four.classList.add('hidden');
-            }
-        });
-    });
-    // --- NEW: Updated message controls ---
-    const messageControls = [dom.textInput, dom.fontSelect, dom.fontSizeSelect, dom.colorPicker];
-    messageControls.forEach(el => {
-        el.addEventListener('input', () => {
-            // (Removed logic for old sliders)
-            checkMessageOverflow();
-            debouncedProfanityCheck(dom.textInput.value, dom.messageProfanityWarning);
-            debouncedUpdateAllPreviews();
-        });
-    });
-    const otherBackControls = [...Object.values(dom.addressInputs)];
-    otherBackControls.forEach(el => {
-        el.addEventListener('input', () => {
-            debouncedUpdateAllPreviews();
-        });
-    });
-    dom.search.showBtn.addEventListener('click', () => dom.search.modal.style.display = 'flex');
-    dom.search.closeBtn.addEventListener('click', () => dom.search.modal.style.display = 'none');
-    dom.search.searchBtn.addEventListener('click', handleImageSearch);
-    dom.search.input.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleImageSearch(); });
-    dom.sendPostcardBtn.addEventListener('click', handleSendPostcard);
-    dom.sender.sendBtn.addEventListener('click', handleFinalSend);
-    dom.sender.closeBtn.addEventListener('click', () => {
-        dom.sender.modal.style.display = 'none';
-        dom.sender.detailsView.style.display = 'flex'; // Use flex for visibility
-        dom.sender.checkEmailView.style.display = 'none';
-    });
-    dom.finalPreviewFront.addEventListener('click', () => { if (dom.finalPreviewFront.src) { dom.zoom.image.src = dom.finalPreviewFront.src; dom.zoom.modal.style.display = 'flex'; } });
-    dom.finalPreviewBack.addEventListener('click', () => { if (dom.finalPreviewBack.src) { dom.zoom.image.src = dom.finalPreviewBack.src; dom.zoom.modal.style.display = 'flex'; } });
-    dom.zoom.closeBtn.addEventListener('click', () => dom.zoom.modal.style.display = 'none');
+    // No Thanks button removed? Or keep if needed for mobile flow?
+    // dom.noThanksTextBtn...
+
+    // Canvas Interaction
+    if(dom.previewCanvas.el) {
+        // ... (Add interaction listeners here if not added elsewhere)
+    }
     
-    // --- NEW: Add listener for AI button ---
+    // NEW: Add listener for AI button
     if(dom.aiGenerateBtn) { // Check if it exists before adding listener
         dom.aiGenerateBtn.addEventListener('click', handleAIAssist);
     }
     
-    toggleAccordion(document.getElementById('accordion-header-5'), true);
-    toggleAccordion(document.getElementById('accordion-header-1'), true);
+    // toggleAccordion(document.getElementById('accordion-header-5'), true);
+    // toggleAccordion(document.getElementById('accordion-header-1'), true);
 }
