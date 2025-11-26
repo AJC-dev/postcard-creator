@@ -51,7 +51,7 @@ async function sendToPrintAPI(postcardData, postcardCount) {
     };
 
     const basicAuth = Buffer.from(`${ZAPPOST_USERNAME}:${ZAPPOST_PASSWORD}`).toString('base64');
-    const response = await fetch('https://api.zappost.com/api/v1/records', {
+    const response = await fetch('https://api.zappost.com/api/v1/submissions', {
         method: 'POST',
         headers: {
             'Authorization': `Basic ${basicAuth}`,
